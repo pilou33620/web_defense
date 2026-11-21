@@ -2,6 +2,7 @@
 import { THREE, scene, cam, posCase, surTap, chaqueImage, qualite, reglerQualite } from '../graphismes/rendu/scene.js';
 import * as plateau from '../graphismes/rendu/plateau.js';
 import { appliquerMeteo } from '../graphismes/rendu/meteo.js';
+import { climat } from '../graphismes/rendu/vie.js';
 import { majRoutes } from '../graphismes/rendu/routes.js';
 import { etiquette, toutEffacer } from '../graphismes/rendu/etiquettes.js';
 import { ERES, STYLES, tour, ennemi, projectile, barreVie, anneauPortee, batimentVille, animerVille, explosion, eclat, eclaboussure, rayon, chute } from '../graphismes/rendu/defense.js';
@@ -41,6 +42,7 @@ function demarrer(n) {
   plateau.degager(carte.ville);
   const genres = [['soleil', 'nuages', 'neige', 'gel'], ['soleil', 'nuages', 'pluie', 'soleil'], ['soleil', 'soleil', 'nuages', 'orage'], ['soleil', 'nuages', 'pluie', 'soleil']][carte.saison];
   appliquerMeteo({ genre: genres[n % 4], temperature: [-3, 13, 24, 12][carte.saison], vent: 0.3, direction: n, pluie: 0.5, neige_sol: neige }, carte.saison);
+  climat.nuages = Math.min(climat.nuages, 3);  // vus de haut, les nuages cacheraient le champ de bataille
   majRoutes(carte.chemin.slice(1).map((c, k) => [carte.chemin[k], c, E.route, 1]));
   // le chemin des ennemis : les centres des cases, et leur longueur cumulée
   S.pts = carte.chemin.map(i => { const p = posCase(i); return { x: p.x, z: p.z, y: plateau.dessus(i), s: 0 }; });
