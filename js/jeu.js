@@ -5,13 +5,12 @@ import { appliquerMeteo } from '../graphismes/rendu/meteo.js';
 import { climat } from '../graphismes/rendu/vie.js';
 import { majRoutes } from '../graphismes/rendu/routes.js';
 import { etiquette, toutEffacer } from '../graphismes/rendu/etiquettes.js';
-import { ERES, STYLES, tour, ennemi, projectile, barreVie, anneauPortee, batimentVille, animerVille, explosion, eclat, eclaboussure, rayon, chute } from '../graphismes/rendu/defense.js';
+import { ERES, STYLES, tour, tirer, ennemi, avancer, abattre, toucher, projectile, suivreTir, barreVie, anneauPortee, batimentVille, animerVille, explosion, eclaboussure, rayon, chute } from '../graphismes/rendu/defense.js';
 import * as R from './regles.js';
 import { genererCarte, constructible } from './carte.js';
 
 const $ = id => document.getElementById(id);
 const DESC = { rapide: 'Tir rapide, une cible', zone: 'Explosion : touche un groupe', lent: 'Ralentit les ennemis', loin: 'Longue portée, perce les armures' };
-const POUDRE = new Set(['balle', 'boulet', 'obus', 'roquette', 'plasma']);
 
 // ------------------------------------------------------------------ progression (dans le navigateur)
 const CLE = 'web_defense.progres';
@@ -78,38 +77,37 @@ function surChemin(s) {
 
 // ------------------------------------------------------------------ ennemis
 function lacher({ genre, vie }) {
-  const m = ennemi(genre, S.style, S.E.couleur), b = barreVie(), base = R.ENNEMIS[genre];
+  const m = ennemi(genre, S.E), b = barreVie(), base = R.ENNEMIS[genre];
   ajouter(m.groupe); ajouter(b.objet);
-  S.ennemis.push({ genre, vie, vieMax: vie, s: 0, v: base.vitesse * (0.95 + Math.random() * 0.1), lent: 0, lentF: 0, m, b, dec: (Math.random() - 0.5) * 0.3, ph: Math.random() * 6, x: 0, y: 0, z: 0 });
+  S.ennemis.push({ genre, vie, vieMax: vie, s: 0, v: base.vitesse * (0.95 + Math.random() * 0.1), lent: 0, lentF: 0, m, b, dec: (Math.random() - 0.5) * 0.3, x: 0, y: 0, z: 0 });
 }
 function blesser(e, degats, role) {
   if (e.vie <= 0) return;
   e.vie -= R.degatsRecus(e.genre, degats, role);
   e.b.regler(e.vie / e.vieMax);
-  if (e.vie <= 0) {
-    S.or += R.ENNEMIS[e.genre].or;
-    chute(e.x, e.y, e.z, e.genre === 'lourd' || e.genre === 'chef' || S.style !== 'antique' && e.genre === 'rapide');
-    if (e.m.vol) explosion(e.x, e.y, e.z, 0.5);
-  }
+  if (e.vie > 0) return toucher(e.m);
+  S.or += R.ENNEMIS[e.genre].or;
+  chute(e.x, e.y, e.z, e.m.roule);
+  if (e.m.vol) explosion(e.x, e.y, e.z, 0.5);
+  abattre(e.m); e.tombe = true;  // la bibliothèque le fait tomber, puis le retire de la scène
 }
 function majEnnemis(dt) {
   for (let k = S.ennemis.length - 1; k >= 0; k--) {
     const e = S.ennemis[k];
-    if (e.vie <= 0) { retirer(e.m.groupe); retirer(e.b.objet); e.b.objet.children[1].material.dispose(); S.ennemis.splice(k, 1); continue; }
+    if (e.vie <= 0) { if (e.tombe) poses.splice(poses.indexOf(e.m.groupe), 1); else retirer(e.m.groupe); retirer(e.b.objet); e.b.objet.children[1].material.dispose(); S.ennemis.splice(k, 1); continue; }
     if (e.lent > 0) e.lent -= dt;
-    e.s += e.v * (e.lent > 0 ? 1 - e.lentF : 1) * dt;
+    const pas = e.v * (e.lent > 0 ? 1 - e.lentF : 1) * dt;
+    e.s += pas; avancer(e.m, pas, dt);
     if (e.s >= S.longueur) {  // la ville est atteinte
       S.vies = Math.max(0, S.vies - R.ENNEMIS[e.genre].degats); e.vie = 0;
       explosion(e.x, e.y + 0.2, e.z, 0.5); choc();
       continue;
     }
-    const p = surChemin(e.s), vol = e.m.vol ? 0.9 + Math.sin(S.t * 2 + e.ph) * 0.06 : 0;
+    const p = surChemin(e.s), vol = e.m.vol ? 0.9 : 0;
     e.x = p.x - p.dz * e.dec; e.z = p.z + p.dx * e.dec; e.y = p.y + vol;
     e.m.groupe.position.set(e.x, e.y, e.z);
     e.m.groupe.rotation.y = Math.atan2(p.dx, p.dz);
-    if (!e.m.vol) e.m.corps.position.y = Math.abs(Math.sin(S.t * 9 * e.v + e.ph)) * 0.7;
-    for (const h of e.m.helices) h.rotation.y += dt * 30;
-    e.b.objet.position.set(e.x, e.y + (e.genre === 'chef' ? 1 : 0.55), e.z);
+    e.b.objet.position.set(e.x, e.y + (e.genre === 'chef' ? 1.05 : 0.6), e.z);
   }
 }
 
@@ -123,7 +121,7 @@ function batir(i, role) {
 }
 function poserTour(i, role, niveau) {
   const ancienne = S.tours.get(i); if (ancienne) retirer(ancienne.m.groupe);
-  const m = tour(role, S.style, niveau), p = posCase(i), y = plateau.dessus(i);
+  const m = tour(role, S.E, niveau, { pop: true }), p = posCase(i), y = plateau.dessus(i);
   m.groupe.position.set(p.x, y, p.z); ajouter(m.groupe);
   if (ancienne) m.tete.rotation.y = ancienne.m.tete.rotation.y;
   S.tours.set(i, { i, role, niveau, m, x: p.x, z: p.z, recharge: 0.3, stats: R.statsTour(role, niveau, R.ereDe(S.n), S.carte.terrain[i] === 5) });
@@ -149,10 +147,8 @@ function majTours(dt) {
     t.m.tete.rotation.y = Math.atan2(cible.x - t.x, cible.z - t.z);
     if (t.recharge > 0) continue;
     t.recharge = t.stats.cadence;
-    t.m.groupe.updateMatrixWorld(true);
-    const depart = t.m.tete.localToWorld(_v.copy(t.m.bouche)).clone(), genre = STYLES[S.style].tours[t.role][1];
+    const depart = tirer(t.m), genre = STYLES[S.style].tours[t.role][1];  // recul, fumée et éclair : la bibliothèque
     if (genre === 'laser') { rayon(depart, new THREE.Vector3(cible.x, cible.y + 0.15, cible.z)); impact({ role: t.role, stats: t.stats, cible, x: cible.x, y: cible.y, z: cible.z }); continue; }
-    if (POUDRE.has(genre)) eclat(depart.x, depart.y, depart.z, genre === 'plasma' ? 0xe040ff : undefined);
     const st = t.stats, d = Math.hypot(cible.x - depart.x, cible.z - depart.z), duree = Math.max(0.12, d / st.vitesse);
     // la zone vise là où sera la cible à l'arrivée (projectile en cloche) ; les autres la suivent
     let fin = null;
@@ -169,6 +165,7 @@ function majTirs(dt) {
     const av = p.m.position.clone();
     p.m.position.set(p.depart.x + (b.x - p.depart.x) * u, p.depart.y + (b.y - p.depart.y) * u + Math.sin(u * Math.PI) * p.arc, p.depart.z + (b.z - p.depart.z) * u);
     if (p.m.position.distanceToSquared(av) > 1e-8) p.m.lookAt(_v.copy(p.m.position).multiplyScalar(2).sub(av));
+    suivreTir(p.m);
     if (u < 1) continue;
     retirer(p.m); S.tirs.splice(k, 1);
     impact({ ...p, x: b.x, y: b.y, z: b.z });

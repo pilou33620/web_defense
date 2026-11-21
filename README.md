@@ -27,6 +27,9 @@ Un serveur est nécessaire (modules JS). Le jeu marche hors ligne (tout est dans
 | lent | ralentit les ennemis touchés (poix → pompe à bras → pompe à vapeur → canon à eau → cryogénie) |
 | loin | longue portée, perce les armures (scorpion → couleuvrine → canon long → missiles → canon électrique) |
 
+Les tours sont animées (recul au tir, bras de l'onagre, levier des pompes, fumées, drapeaux, radars) et sortent de terre
+quand on les bâtit ; les ennemis marchent en troupes (jambes, sabots, roues, hélices) et tombent quand ils sont vaincus.
+
 Ennemis : fantassins, rapides (cavaliers, motos, jeeps, drones), lourds et blindés (armure : 35 % des dégâts arrêtés, sauf par
 la tour « loin »), et un chef à la dernière vague (éléphant de guerre, canon de siège, zeppelin, hélicoptère, méca géant).
 Chaque nouvelle époque renforce les tours (+25 %), ce qui soulage un peu au début de l'époque.
