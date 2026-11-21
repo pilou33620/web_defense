@@ -1,7 +1,8 @@
 # web_defense — tower defense à travers les époques
 
-Un tower defense en vue de dessus sur une carte hexagonale. Les ennemis suivent le chemin jusqu'à la ville ; on bâtit des tours
-sur les cases libres pour les arrêter. Les niveaux sont **générés à l'infini** : la difficulté monte à chaque niveau, et l'époque
+Un tower defense en vue de dessus sur une carte hexagonale : une île de trois cases autour d'un chemin court (11 à 16 cases),
+entourée par la mer, pour une vue rapprochée. Les ennemis suivent le chemin jusqu'à la ville ; on bâtit des tours sur les cases
+libres pour les arrêter. Les niveaux sont **générés à l'infini** : la difficulté monte à chaque niveau, et l'époque
 change **tous les cinq niveaux**, de l'Antiquité à 2035 (quinze époques), puis on reste au futur.
 
 ## Jouer
@@ -40,7 +41,7 @@ Chaque nouvelle époque renforce les tours (+25 %), ce qui soulage un peu au dé
 index.html, css/jeu.css
 js/jeu.js          la partie : carte dessinée par le moteur, tours, ennemis, tirs, vagues, interface
 js/regles.js       les règles, sans affichage : époques, tours, ennemis, vagues, difficulté
-js/carte.js        la carte d'un niveau (reproductible) : relief, lacs, forêts, rivière, chemin et ville
+js/carte.js        la carte d'un niveau (reproductible) : l'île autour du chemin, relief, lacs, forêts, rivière, ville
 tests/             node tests/regles.test.mjs : 120 niveaux générés et vérifiés, difficulté croissante
 graphismes/        la bibliothèque graphique de web_engine (partie « defense ») : NE PAS MODIFIER ICI
 outils/maj-graphismes.sh

@@ -55,12 +55,13 @@ function demarrer(n) {
   const d = posCase(carte.chemin[0]), v = posCase(carte.ville[0]);
   etiquette('entree', '<div class="ban" style="--c:#b8322a">⚔ Entrée</div>', d.x, 0.6, d.z);
   etiquette('ville', `<div class="ban" style="--c:#2f5fa8">${E.an < 0 ? 'Oppidum' : 'Ville'}</div>`, v.x, 1.4, v.z);
-  // la caméra : toute la carte
-  const lx = Math.sqrt(3) * carte.l, lz = 1.5 * carte.h;
-  // en portrait, un quart de tour : l'entrée en haut, la ville en bas ; champ de 36° : toute la carte en largeur et en profondeur
+  // la caméra : cadrée sur l'île (les cases de terre), pas sur toute la grille
+  const terre = carte.terrain.flatMap((t, i) => t ? [posCase(i)] : []), xs = terre.map(p => p.x), zs = terre.map(p => p.z);
+  const x0 = Math.min(...xs) - 1, x1 = Math.max(...xs) + 1, z0 = Math.min(...zs) - 1, z1 = Math.max(...zs) + 1, lx = x1 - x0, lz = z1 - z0;
+  // en portrait, un quart de tour : l'entrée en haut, la ville en bas ; champ de 36° : toute l'île en largeur et en profondeur
   const portrait = innerWidth < innerHeight, ratio = innerWidth / innerHeight;
-  Object.assign(cam, { x: lx / 2, z: lz / 2, l: lx, h: lz, auto: false, lacet: portrait ? Math.PI / 2 : 0 });
-  cam.d = cam.cible = Math.max(18, Math.min(90, Math.max((portrait ? lz : lx) * 1.6 / ratio, (portrait ? lx : lz) * 1.25)));
+  Object.assign(cam, { x: (x0 + x1) / 2, z: (z0 + z1) / 2, l: Math.sqrt(3) * carte.l, h: 1.5 * carte.h, auto: false, lacet: portrait ? Math.PI / 2 : 0 });
+  cam.d = cam.cible = Math.max(10, Math.min(90, Math.max((portrait ? lz : lx) * 1.45 / ratio, (portrait ? lx : lz) * 1.2)));
   $('menu').hidden = true; $('fin').hidden = true; $('b-pause').textContent = '⏸';
   majHud();
 }

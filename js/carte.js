@@ -2,7 +2,9 @@
 // (plateau.construire) : relief, lacs, forêts, rivière, le chemin des ennemis et la ville à défendre. Sans affichage (testée).
 import { hasard } from './regles.js';
 
-export const LARGEUR = 18, HAUTEUR = 12;
+export const LARGEUR = 13, HAUTEUR = 9;
+/** La terre s'arrête à cette distance (en cases) du chemin : au-delà, la mer. */
+export const RIVAGE = 3;
 // voisins d'une case en lignes décalées (comme graphismes/rendu/scene.js) : lignes paires, lignes impaires
 const DP = [[1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1]], DI = [[1, 0], [1, 1], [0, 1], [-1, 0], [0, -1], [1, -1]];
 export function voisins(i, l = LARGEUR, h = HAUTEUR) {
@@ -40,7 +42,7 @@ export function genererCarte(n) {
 
 function tracerChemin(rnd, l, h) {
   // des points de passage de plus en plus à l'est, reliés en lignes droites
-  const k = 3 + Math.floor(rnd() * 3), pts = [];
+  const k = 1 + Math.floor(rnd() * 2), pts = [];  // un ou deux virages : un chemin court
   for (let j = 0; j <= k + 1; j++) {
     const c = j === 0 ? 0 : j === k + 1 ? l - 3 : Math.round(j * (l - 3) / (k + 1) + (rnd() - 0.5) * 2);
     const r = 1 + Math.floor(rnd() * (h - 2));
@@ -49,7 +51,7 @@ function tracerChemin(rnd, l, h) {
   const chemin = [pts[0]];
   for (let j = 1; j < pts.length; j++) for (const i of ligne(pts[j - 1], pts[j], l).slice(1)) if (i !== chemin.at(-1)) chemin.push(i);
   // refusé s'il repasse sur lui-même, se colle à lui-même (deux tronçons voisins sans place pour une tour) ou est trop court
-  if (new Set(chemin).size !== chemin.length || chemin.length < l + 4) return null;
+  if (new Set(chemin).size !== chemin.length || chemin.length < l - 2) return null;
   const rang = new Map(chemin.map((i, k) => [i, k]));
   for (const [i, k] of rang) for (const v of voisins(i, l, h)) if (rang.has(v) && Math.abs(rang.get(v) - k) > 1) return null;
   return chemin;
@@ -59,14 +61,15 @@ function habiller(rnd, chemin, l, h, N) {
   const terrain = new Array(N).fill(4), foret = new Array(N).fill(0), arbres = new Array(N).fill(0), riviere = new Array(N).fill(0);
   const sur = new Set(chemin), coeur = chemin.at(-1);
   const ville = [coeur, ...voisins(coeur, l, h).filter(v => !sur.has(v)).slice(0, 3)], enVille = new Set(ville);
+  const pres = Array.from({ length: N }, (_, i) => Math.min(...chemin.map(c => distance(c, i, l))));  // distance au chemin
   const tache = (r0, r1, f) => { const c = Math.floor(rnd() * N), r = r0 + Math.floor(rnd() * (r1 - r0 + 1)); for (let i = 0; i < N; i++) { const d = distance(c, i, l); if (d <= r) f(i, d, r); } };
   // montagnes (entourées de collines), lacs, forêts, bosquets
-  for (let k = 0; k < 2 + Math.floor(rnd() * 3); k++) tache(1, 2, (i, d, r) => { terrain[i] = d < r ? 6 : Math.max(terrain[i], 5); });
+  for (let k = 0; k < 1 + Math.floor(rnd() * 2); k++) tache(1, 2, (i, d, r) => { terrain[i] = d < r ? 6 : Math.max(terrain[i], 5); });
   for (let k = 0; k < 2; k++) tache(1, 2, (i, d) => { if (d === 0 || rnd() < 0.5) terrain[i] = Math.max(terrain[i], 5); });
-  for (let k = 0; k < 1 + Math.floor(rnd() * 2); k++) tache(0, 1, i => { terrain[i] = 2; });
-  for (let k = 0; k < 4 + Math.floor(rnd() * 3); k++) tache(1, 2, (i, d) => { if (d < 2 || rnd() < 0.6) foret[i] = 1; });
+  for (let k = 0; k < Math.floor(rnd() * 2); k++) tache(0, 1, i => { terrain[i] = 2; });
+  for (let k = 0; k < 3 + Math.floor(rnd() * 2); k++) tache(1, 2, (i, d) => { if (d < 2 || rnd() < 0.6) foret[i] = 1; });
   for (let i = 0; i < N; i++) arbres[i] = foret[i] ? 4 + Math.floor(rnd() * 3) : rnd() < 0.12 ? 1 + Math.floor(rnd() * 2) : 0;  // le moteur dessine autant d'arbres
-  // une rivière du haut en bas de la carte (une fois sur deux), loin de la ville
+  // une rivière (une fois sur deux), loin de la ville : elle traverse l'île d'une côte à l'autre
   const rivieres = [];
   if (rnd() < 0.5) {
     const lit = []; let i = 4 + Math.floor(rnd() * (l - 9));
@@ -76,7 +79,8 @@ function habiller(rnd, chemin, l, h, N) {
       if (!bas.length) break;
       i = bas[Math.floor(rnd() * bas.length)];
     }
-    if (lit.length === h) { rivieres.push(lit); for (const j of lit) { riviere[j] = 1; if (terrain[j] !== 4) terrain[j] = 4; } }
+    const terre = []; for (const j of lit) { if (pres[j] <= RIVAGE) terre.push(j); else if (terre.length) break; }  // la partie sur l'île
+    if (lit.length === h && terre.length >= 4) { rivieres.push(terre); for (const j of terre) { riviere[j] = 1; if (terrain[j] !== 4) terrain[j] = 4; } }
   }
   // le chemin, la ville et leurs abords : du terrain plat et dégagé, pour que les tours trouvent leur place
   for (const i of [...sur, ...enVille]) { terrain[i] = 4; foret[i] = 0; arbres[i] = 0; }
@@ -85,6 +89,7 @@ function habiller(rnd, chemin, l, h, N) {
     if (foret[v] && rnd() < 0.75) { foret[v] = 0; arbres[v] = 0; }
   }
   for (const i of enVille) riviere[i] = 0;
+  for (let i = 0; i < N; i++) if (pres[i] > RIVAGE) { terrain[i] = 0; foret[i] = 0; arbres[i] = 0; riviere[i] = 0; }  // la mer autour de l'île
   const z = () => new Array(N).fill(0);
   return {
     l, h, version: 1, terrain, riviere, foret, arbres, rivieres, fertile: z(), poissons: z(), gisement: new Array(N).fill(null), biome: new Array(N).fill(null),

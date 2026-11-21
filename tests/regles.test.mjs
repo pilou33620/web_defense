@@ -1,6 +1,6 @@
 // node tests/regles.test.mjs : les cartes et les vagues de nombreux niveaux restent jouables.
 import assert from 'node:assert/strict';
-import { genererCarte, voisins, constructible, LARGEUR } from '../js/carte.js';
+import { genererCarte, voisins, constructible, distance, LARGEUR } from '../js/carte.js';
 import { ereDe, vague, nbVagues, statsTour, prixVente, coutAmelioration, degatsRecus, etoiles, VIES } from '../js/regles.js';
 
 for (let n = 1; n <= 120; n++) {
@@ -11,9 +11,10 @@ for (let n = 1; n <= 120; n++) {
   for (const i of c.chemin) assert.ok(c.terrain[i] === 4 && !c.foret[i], `niveau ${n} : chemin praticable`);
   assert.equal(c.ville[0], c.chemin.at(-1), `niveau ${n} : la ville est au bout du chemin`);
   const places = [...Array(N).keys()].filter(i => constructible(c, i) && voisins(i).some(v => c.chemin.includes(v)));
-  assert.ok(places.length >= 15, `niveau ${n} : ${places.length} places de tour au bord du chemin`);
+  assert.ok(places.length >= 10, `niveau ${n} : ${places.length} places de tour au bord du chemin`);
   assert.deepEqual(genererCarte(n).chemin, c.chemin, `niveau ${n} : carte reproductible`);
   for (let w = 1; w <= nbVagues(n); w++) assert.ok(vague(n, w).length > 0);
+  assert.ok(c.terrain.every((t, i) => t !== 0 || c.chemin.every(p => distance(p, i) > 3)), `niveau ${n} : la mer commence à 4 cases du chemin`);
   assert.ok(vague(n, nbVagues(n)).some(e => e.genre === 'chef'), `niveau ${n} : un chef à la dernière vague`);
 }
 assert.deepEqual([1, 5, 6, 75, 76, 500].map(ereDe), [0, 0, 1, 14, 14, 14]);

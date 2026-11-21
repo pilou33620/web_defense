@@ -34,12 +34,12 @@ export function statsTour(role, niveau, ere, colline = false) {
 }
 
 // ------------------------------------------------------------------ ennemis
-// vitesse en unités du plateau par seconde ; armure : part des dégâts arrêtée (sauf tirs de la tour « loin », qui percent)
+// vitesse en unités du plateau par seconde (lente : le chemin est court, on voit les troupes marcher) ; armure : part des dégâts arrêtée (sauf tirs de la tour « loin », qui percent)
 export const ENNEMIS = {
-  fantassin: { vie: 32, vitesse: 0.75, armure: 0, or: 4, degats: 1 },
-  rapide: { vie: 20, vitesse: 1.3, armure: 0, or: 3, degats: 1 },
-  lourd: { vie: 95, vitesse: 0.48, armure: 0.35, or: 9, degats: 2 },
-  chef: { vie: 420, vitesse: 0.4, armure: 0.25, or: 50, degats: 5 },
+  fantassin: { vie: 32, vitesse: 0.56, armure: 0, or: 4, degats: 1 },
+  rapide: { vie: 20, vitesse: 0.98, armure: 0, or: 3, degats: 1 },
+  lourd: { vie: 95, vitesse: 0.36, armure: 0.35, or: 9, degats: 2 },
+  chef: { vie: 420, vitesse: 0.3, armure: 0.25, or: 50, degats: 5 },
 };
 /** Les dégâts reçus par un ennemi, après son armure. */
 export const degatsRecus = (genre, degats, role) => degats * (role === 'loin' ? 1 : 1 - ENNEMIS[genre].armure);
