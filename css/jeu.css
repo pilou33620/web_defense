@@ -44,3 +44,14 @@ select { font: inherit; background: #2a3227; color: inherit; border: 1px solid v
 .aide { font-size: 12px; opacity: .7; margin: 12px 0 0; }
 
 .lbl .ban { font-size: 12px; }
+
+.boite.large { width: min(820px, 100%); text-align: left; }
+.boite.large h1, .boite.large .sous { text-align: center; }
+#aide-tables h2 { font-size: 16px; margin: 14px 0 6px; }
+#aide-tables .defile { overflow-x: auto; }
+#aide-tables table { width: 100%; border-collapse: collapse; font-size: 14px; }
+#aide-tables th, #aide-tables td { padding: 5px 8px; border-bottom: 1px solid var(--bord); text-align: left; vertical-align: top; }
+#aide-tables th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; opacity: .7; font-weight: 600; }
+#aide-tables td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+#aide-tables .note { font-size: 13px; opacity: .75; margin: 6px 0 0; }
+#aide .grand { display: block; margin: 16px auto 0; }

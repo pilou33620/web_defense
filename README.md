@@ -18,6 +18,8 @@ Un serveur est nécessaire (modules JS). Le jeu marche hors ligne (tout est dans
 - **Améliorer ou vendre :** toucher une tour (trois niveaux ; la vente rend 70 % de ce qu'elle a coûté).
 - **Les vagues arrivent seules** après un compte à rebours ; « ▶ Vague … » la lance tout de suite, et les secondes gagnées
   sont données en or. Vitesse ×1, ×2, ×3 et pause en haut à droite.
+- **Aide « ? » :** les défenseurs (coût, attaque du niveau 1 au niveau 3, cadence, portée, effet) et les attaquants (vie de la
+  première à la dernière vague, vies ôtées à la ville, vitesse, armure, butin) de l'époque, chiffrés pour le niveau joué.
 - **Fin du niveau :** 20 vies (un chef en coûte 5). Une à trois étoiles selon les vies restantes ; la progression est gardée
   dans le navigateur. `?niveau=N` dans l'adresse lance directement le niveau N.
 

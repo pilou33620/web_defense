@@ -21,6 +21,7 @@
   <span class="espace"></span>
   <button id="b-vitesse" type="button" title="Vitesse du jeu">×1</button>
   <button id="b-pause" type="button" title="Pause">⏸</button>
+  <button id="b-aide" type="button" title="Aide : défenseurs et attaquants" aria-label="Aide">?</button>
   <button id="b-menu" type="button" title="Menu">☰</button>
 </header>
 
@@ -34,6 +35,15 @@
     <div id="niveaux"></div>
     <label class="qualite">Qualité <select id="qualite"><option value="leger">Légère</option><option value="normal">Normale</option><option value="riche">Riche</option></select></label>
     <p class="aide">Toucher une case libre au bord du chemin : bâtir une tour. Toucher une tour : l'améliorer ou la vendre.<br>Glisser : déplacer · pincer ou molette : zoom · deux doigts, clic droit ou Maj : tourner</p>
+  </div>
+</div>
+
+<div id="aide" class="voile" hidden>
+  <div class="boite large">
+    <h1 id="aide-titre"></h1>
+    <p class="sous" id="aide-sous"></p>
+    <div id="aide-tables"></div>
+    <button id="b-aide-fermer" class="grand" type="button">Reprendre</button>
   </div>
 </div>
 

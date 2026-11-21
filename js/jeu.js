@@ -5,7 +5,7 @@ import { appliquerMeteo } from '../graphismes/rendu/meteo.js';
 import { climat } from '../graphismes/rendu/vie.js';
 import { majRoutes } from '../graphismes/rendu/routes.js';
 import { etiquette, toutEffacer } from '../graphismes/rendu/etiquettes.js';
-import { ERES, STYLES, tour, tirer, ennemi, avancer, abattre, toucher, projectile, suivreTir, barreVie, anneauPortee, batimentVille, animerVille, explosion, eclaboussure, rayon, chute } from '../graphismes/rendu/defense.js';
+import { ERES, STYLES, VOLANTS, tour, tirer, ennemi, avancer, abattre, toucher, projectile, suivreTir, barreVie, anneauPortee, batimentVille, animerVille, explosion, eclaboussure, rayon, chute } from '../graphismes/rendu/defense.js';
 import * as R from './regles.js';
 import { genererCarte, constructible } from './carte.js';
 
@@ -299,6 +299,28 @@ surTap(i => {
 $('b-lancer').addEventListener('click', () => { if (S.attente != null) { S.or += Math.ceil(S.attente); lancerVague(); } });
 $('b-vitesse').addEventListener('click', e => { S.vitesse = S.vitesse % 3 + 1; e.currentTarget.textContent = `×${S.vitesse}`; });
 $('b-pause').addEventListener('click', e => { S.pause = !S.pause; e.currentTarget.textContent = S.pause ? '▶' : '⏸'; });
+// l'aide : les défenseurs et les attaquants de l'époque, avec leurs chiffres au niveau joué (le jeu est en pause pendant la lecture)
+let pauseAvantAide = false;
+function ouvrirAide() {
+  pauseAvantAide = S.pause; S.pause = true;
+  const ere = R.ereDe(S.n), T = STYLES[S.style], d = R.difficulte(S.n), dmax = d * (1 + 0.08 * (S.total - 1));
+  $('aide-titre').textContent = `${S.E.nom} · niveau ${S.n}`;
+  $('aide-sous').textContent = `Chiffres de ce niveau. Les ennemis gagnent 8 % de vie à chaque vague (${S.total} vagues).`;
+  $('aide-tables').innerHTML = `<h2>Défenseurs</h2><div class="defile"><table>
+      <thead><tr><th>Tour</th><th>Coût</th><th>Attaque (niv. 1 → 3)</th><th>Tirs/s</th><th>Portée</th><th>Effet</th></tr></thead><tbody>
+      ${Object.keys(R.TOURS).map(r => { const a = R.statsTour(r, 1, ere), b = R.statsTour(r, R.NIVEAU_MAX, ere);
+        return `<tr><td>${T.tours[r][0]}</td><td class="n">🪙 ${R.TOURS[r].cout}</td><td class="n">${Math.round(a.degats)} → ${Math.round(b.degats)}</td><td class="n">${(1 / a.cadence).toFixed(1)}</td><td class="n">${a.portee.toFixed(1)}</td><td>${DESC[r]}${r === 'lent' ? ` (−${Math.round(R.TOURS.lent.ralenti * 100)} % pendant ${R.TOURS.lent.duree} s)` : ''}</td></tr>`; }).join('')}
+      </tbody></table></div>
+    <p class="note">Les tours n'ont pas de points de vie : les ennemis ne les attaquent pas, ils marchent sur la ville. Sur une colline, +15 % de portée.</p>
+    <h2>Attaquants</h2><div class="defile"><table>
+      <thead><tr><th>Ennemi</th><th>Vie (vague 1 → ${S.total})</th><th>Attaque sur la ville</th><th>Vitesse</th><th>Armure</th><th>Butin</th></tr></thead><tbody>
+      ${Object.entries(R.ENNEMIS).map(([g, e]) => `<tr><td>${T.ennemis[g]}${VOLANTS.has(S.style + ':' + g) ? ' (vole)' : ''}</td><td class="n">${Math.round(e.vie * d)} → ${Math.round(e.vie * dmax)}</td><td class="n">−${e.degats} ${e.degats > 1 ? 'vies' : 'vie'}</td><td class="n">${e.vitesse.toFixed(2)}</td><td class="n">${e.armure ? Math.round(e.armure * 100) + ' %' : '—'}</td><td class="n">🪙 ${e.or}</td></tr>`).join('')}
+      </tbody></table></div>
+    <p class="note">L'armure arrête une part des dégâts, sauf ceux de la tour « ${T.tours.loin[0]} », qui perce. Vitesse en cases par seconde. La ville a ${R.VIES} vies.</p>`;
+  $('aide').hidden = false;
+}
+$('b-aide').addEventListener('click', ouvrirAide);
+$('b-aide-fermer').addEventListener('click', () => { $('aide').hidden = true; S.pause = pauseAvantAide; $('b-pause').textContent = S.pause ? '▶' : '⏸'; });
 $('b-menu').addEventListener('click', () => { S.pause = true; $('b-pause').textContent = '▶'; ouvrirMenu(); });
 $('b-suivant').addEventListener('click', () => demarrer(S.n + 1));
 $('b-rejouer').addEventListener('click', () => demarrer(S.n));
