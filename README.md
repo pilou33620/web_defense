@@ -8,8 +8,8 @@ change **tous les cinq niveaux**, de l'Antiquité à 2035 (quinze époques), pui
 ## Jouer
 
 ```sh
-python3 serveur.py --port 8000    # ou : python3 -m http.server 8000
-# puis ouvrir http://localhost:8000/
+python3 server.py                 # ou double-clic sur « Lancer le jeu.bat » sous Windows
+# puis ouvrir http://localhost:8000/ (code d'appairage affiché pour les autres appareils du réseau)
 ```
 
 Un serveur est nécessaire (modules JS). Le jeu marche hors ligne (tout est dans le dépôt), sur ordinateur et sur tablette.
