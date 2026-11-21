@@ -4,11 +4,17 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   verifier:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # le serveur : options, fichiers servis et refusés, garde, mise à jour par git (faux dépôt local)
+      - name: Serveur (Rust)
+        run: cargo test -p defense
       - uses: actions/setup-node@v4
         with:
           node-version: 22
