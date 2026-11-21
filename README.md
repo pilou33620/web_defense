@@ -8,11 +8,36 @@ change **tous les cinq niveaux**, de l'Antiquité à 2035 (quinze époques), pui
 ## Jouer
 
 ```sh
-python3 server.py                 # ou double-clic sur « Lancer le jeu.bat » sous Windows
-# puis ouvrir http://localhost:8000/ (code d'appairage affiché pour les autres appareils du réseau)
+./lancer.sh                       # Linux, macOS, Raspberry Pi ; sous Windows : double-clic sur « Lancer le jeu.bat » (ou lancer.bat)
+# puis ouvrir http://localhost:8801/
 ```
 
-Un serveur est nécessaire (modules JS). Le jeu marche hors ligne (tout est dans le dépôt), sur ordinateur et sur tablette.
+Le serveur est un petit exécutable en Rust (`rust/defense`) : il sert la page et ne fait rien d'autre, le jeu tourne dans le
+navigateur (modules JS) et y garde sa progression. `lancer.sh` (ou `lancer.bat`) obtient l'exécutable avec `binaires.sh`
+(`binaires.cmd`) : compilé sur place si Rust (`cargo`) est installé, sinon téléchargé depuis la publication GitHub
+« binaires » (Linux x86_64 et aarch64 pour le Raspberry Pi, macOS, Windows), vérifié par son empreinte SHA-256, une fois par
+version. Rust n'est donc pas nécessaire. Le jeu marche hors ligne une fois l'exécutable obtenu, sur ordinateur et sur tablette.
+
+| Option | Rôle |
+|---|---|
+| `--port N` (ou `--port=N`) | port d'écoute, 8801 par défaut (`$PORT` s'il est défini) ; s'il est pris, les 9 suivants sont essayés |
+| `--local` | n'écouter que sur cet appareil (127.0.0.1), sans code d'appairage |
+| `--host ADRESSE` | `127.0.0.1`, `localhost` ou `::1` : comme `--local` ; autre chose : tout le réseau local (défaut, ou `$HOST`) |
+| `--sans-navigateur` | ne pas ouvrir le navigateur au démarrage |
+| `--sans-pause` | accepté pour web_launcher (le serveur n'attend jamais de touche) |
+| `--sans-maj` | ne pas chercher de mise à jour au démarrage |
+
+**Depuis un autre appareil du réseau** (tablette, téléphone) : ouvrir l'adresse « réseau » affichée dans le terminal
+(`https://<IP du poste>:8801/`). La page demande une fois le **code d'appairage** affiché dans le terminal ; ce poste-ci n'en a
+jamais besoin. La première fois, installer sur l'appareil la CA du poste (lien `…/appairage/ca.pem` affiché au démarrage), sinon
+le navigateur signale un certificat inconnu. Les appareils hors du réseau local et de Tailscale sont refusés.
+
+**Mises à jour** : au démarrage (sauf `--sans-maj`), le jeu fait `git fetch` puis une avance rapide (`git merge --ff-only`)
+s'il y a du nouveau, jamais par-dessus des fichiers modifiés ou des commits locaux ; `lancer.sh` reprend alors l'exécutable de
+la nouvelle version et relance le jeu. Sous web_launcher, c'est le launcher qui met à jour.
+
+**Tests** : `cargo test -p defense` (options, fichiers servis et refusés, garde, mise à jour sur un faux dépôt git) et
+`node tests/regles.test.mjs` (règles et cartes). La CI GitHub lance les deux à chaque envoi.
 
 - **Bâtir :** toucher une case libre (terre ou colline, sans forêt ni rivière) ; une colline donne +15 % de portée.
 - **Améliorer ou vendre :** toucher une tour (trois niveaux ; la vente rend 70 % de ce qu'elle a coûté).
@@ -54,6 +79,8 @@ Chaque nouvelle époque renforce les tours (+25 %), ce qui soulage un peu au dé
 
 ```
 index.html, css/jeu.css
+rust/defense/      le serveur local (Rust) : sert la page, garde et appairage (web_tools_commun), mise à jour par git
+lancer.sh, lancer.bat, binaires.sh, binaires.cmd   obtiennent l'exécutable (compilé ou téléchargé) et le lancent
 js/jeu.js          la partie : carte dessinée par le moteur, tours, ennemis, tirs, vagues, interface
 js/regles.js       les règles, sans affichage : époques, tours, ennemis, vagues, difficulté
 js/carte.js        la carte d'un niveau (reproductible) : l'île autour du chemin, relief, lacs, forêts, rivière, ville

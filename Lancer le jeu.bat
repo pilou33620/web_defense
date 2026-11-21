@@ -1,12 +1,4 @@
 @echo off
-rem Lanceur Windows de web_defense : double-cliquez sur ce fichier.
-rem Au démarrage, le jeu cherche une mise à jour sur GitHub, l'installe et se relance tout seul.
-chcp 65001 >nul
-cd /d "%~dp0"
-where python >nul 2>nul
-if %errorlevel%==0 (
-  python server.py %*
-) else (
-  py server.py %*
-)
-if errorlevel 1 pause
+rem Lanceur Windows de web_defense : double-cliquez sur ce fichier (il passe la main a lancer.bat).
+rem Au demarrage, le jeu cherche une mise a jour sur GitHub, l installe et se relance tout seul.
+call "%~dp0lancer.bat" %*
