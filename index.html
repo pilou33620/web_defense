@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>web_defense</title>
+<link rel="stylesheet" href="graphismes/rendu/rendu.css">
+<link rel="stylesheet" href="css/jeu.css">
+</head>
+<body>
+<canvas id="carte" aria-label="Le champ de bataille : le chemin des ennemis et la ville à défendre"></canvas>
+<div id="etiquettes"></div>
+<div id="eclair"></div>
+
+<header id="hud">
+  <span id="hud-niveau"></span>
+  <span title="Vies de la ville">❤️ <b id="hud-vies"></b></span>
+  <span title="Or">🪙 <b id="hud-or"></b></span>
+  <span id="hud-vague"></span>
+  <button id="b-lancer" type="button" title="Lancer la vague tout de suite (prime : les secondes gagnées)"></button>
+  <span class="espace"></span>
+  <button id="b-vitesse" type="button" title="Vitesse du jeu">×1</button>
+  <button id="b-pause" type="button" title="Pause">⏸</button>
+  <button id="b-menu" type="button" title="Menu">☰</button>
+</header>
+
+<section id="panneau" class="panneau" hidden></section>
+
+<div id="menu" class="voile">
+  <div class="boite">
+    <h1>web_defense</h1>
+    <p class="sous">Défendez la ville, d'époque en époque : une nouvelle époque tous les cinq niveaux, de l'Antiquité à 2035, puis des niveaux sans fin.</p>
+    <div class="boutons"><button id="b-reprendre" class="grand" type="button" hidden></button><button id="b-continuer" class="grand" type="button"></button></div>
+    <div id="niveaux"></div>
+    <label class="qualite">Qualité <select id="qualite"><option value="leger">Légère</option><option value="normal">Normale</option><option value="riche">Riche</option></select></label>
+    <p class="aide">Toucher une case libre au bord du chemin : bâtir une tour. Toucher une tour : l'améliorer ou la vendre.<br>Glisser : déplacer · pincer ou molette : zoom · deux doigts, clic droit ou Maj : tourner</p>
+  </div>
+</div>
+
+<div id="fin" class="voile" hidden>
+  <div class="boite">
+    <h1 id="fin-titre"></h1>
+    <p id="fin-texte" class="sous"></p>
+    <div class="boutons">
+      <button id="b-suivant" class="grand" type="button">Niveau suivant</button>
+      <button id="b-rejouer" type="button">Rejouer</button>
+      <button id="b-fin-menu" type="button">Menu</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/jeu.js"></script>
+</body>
+</html>
