@@ -90,9 +90,11 @@ function habiller(rnd, chemin, l, h, N) {
   }
   for (const i of enVille) riviere[i] = 0;
   for (let i = 0; i < N; i++) if (pres[i] > RIVAGE) { terrain[i] = 0; foret[i] = 0; arbres[i] = 0; riviere[i] = 0; }  // la mer autour de l'île
+  // des champs cultivés loin de la route (le moteur y fait pousser les cultures de la saison, la vie y envoie les paysans)
+  const fertile = Array.from({ length: N }, (_, i) => pres[i] >= 2 && terrain[i] === 4 && !foret[i] && !riviere[i] && !enVille.has(i) && rnd() < 0.4 ? 1 : 0);
   const z = () => new Array(N).fill(0);
   return {
-    l, h, version: 1, terrain, riviere, foret, arbres, rivieres, fertile: z(), poissons: z(), gisement: new Array(N).fill(null), biome: new Array(N).fill(null),
+    l, h, version: 1, terrain, riviere, foret, arbres, rivieres, fertile, poissons: z(), gisement: new Array(N).fill(null), biome: new Array(N).fill(null),
     chemin, ville, saison: Math.floor(rnd() * 4),
   };
 }

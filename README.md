@@ -30,6 +30,19 @@ Un serveur est nécessaire (modules JS). Le jeu marche hors ligne (tout est dans
 | lent | ralentit les ennemis touchés (poix → pompe à bras → pompe à vapeur → canon à eau → cryogénie) |
 | loin | longue portée, perce les armures (scorpion → couleuvrine → canon long → missiles → canon électrique) |
 
+**Pièges**, posés sur la route en touchant une case du chemin (les volants passent au-dessus) :
+
+| Piège | Rôle |
+|---|---|
+| pointes | blessent à chaque passage, s'émoussent après 12 passages (chausse-trappes → chevaux de frise → barbelés → herse à clous → champ de lames) |
+| boue | ralentit de moitié sur sa case, ne s'use pas (fossé boueux → marais → tranchée inondée → mousse collante → champ de gravité) |
+| mine | explose une fois autour d'elle (fosse à feu → fougasse → mine → mine antichar → mine à impulsion) |
+| barrage | arrête les ennemis au sol, qui le frappent jusqu'à le détruire (abattis → gabions → hérissons → blocs de béton → mur de force) |
+
+Réarmer un piège usé coûte moins que le poser. Toutes les animations du moteur tournent : arbres au vent, herbes hautes, mer et
+vagues, météo et cycle jour-nuit, bêtes dans les prés, cerfs et sangliers en lisière, bateaux au large, oiseaux, paysans aux
+champs selon la saison, gens de la ville, lavandières, linge, lucioles, fenêtres allumées la nuit, drapeaux et fumées.
+
 Les tours sont animées (recul au tir, bras de l'onagre, levier des pompes, fumées, drapeaux, radars) et sortent de terre
 quand on les bâtit ; les ennemis marchent en troupes (jambes, sabots, roues, hélices) et tombent quand ils sont vaincus.
 

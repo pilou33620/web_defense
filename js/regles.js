@@ -34,15 +34,33 @@ export function statsTour(role, niveau, ere, colline = false) {
 }
 
 // ------------------------------------------------------------------ ennemis
-// vitesse en unités du plateau par seconde (lente : le chemin est court, on voit les troupes marcher) ; armure : part des dégâts arrêtée (sauf tirs de la tour « loin », qui percent)
+// vitesse en unités du plateau par seconde (lente : le chemin est court, on voit les troupes marcher) ; coup : dégâts par seconde
+// sur une barricade (multipliés par la difficulté du niveau) ; armure : part des dégâts arrêtée (sauf tirs de la tour « loin », qui percent)
 export const ENNEMIS = {
-  fantassin: { vie: 32, vitesse: 0.56, armure: 0, or: 4, degats: 1 },
-  rapide: { vie: 20, vitesse: 0.98, armure: 0, or: 3, degats: 1 },
-  lourd: { vie: 95, vitesse: 0.36, armure: 0.35, or: 9, degats: 2 },
-  chef: { vie: 420, vitesse: 0.3, armure: 0.25, or: 50, degats: 5 },
+  fantassin: { vie: 32, vitesse: 0.56, armure: 0, or: 4, degats: 1, coup: 8 },
+  rapide: { vie: 20, vitesse: 0.98, armure: 0, or: 3, degats: 1, coup: 5 },
+  lourd: { vie: 95, vitesse: 0.36, armure: 0.35, or: 9, degats: 2, coup: 20 },
+  chef: { vie: 420, vitesse: 0.3, armure: 0.25, or: 50, degats: 5, coup: 40 },
 };
 /** Les dégâts reçus par un ennemi, après son armure. */
 export const degatsRecus = (genre, degats, role) => degats * (role === 'loin' ? 1 : 1 - ENNEMIS[genre].armure);
+
+// ------------------------------------------------------------------ pièges (sur le chemin ; les volants passent au-dessus)
+// pointes : dégâts à chaque passage, un nombre de charges ; boue : ralentit sur sa case, ne s'use pas ; mine : explose une fois
+// autour d'elle ; barrage : arrête les ennemis au sol, qui le frappent jusqu'à le détruire. Réarmer coûte moins que poser.
+export const PIEGES = {
+  pointes: { cout: 40, rearme: 20, degats: 22, charges: 12 },
+  boue: { cout: 30, ralenti: 0.5 },
+  mine: { cout: 60, rearme: 35, degats: 120, rayon: 1.3 },
+  barrage: { cout: 55, rearme: 30, vie: 220 },
+};
+/** Les caractéristiques d'un piège à son époque : dégâts et solidité suivent le progrès des armes. */
+export function statsPiege(role, ere) {
+  const b = PIEGES[role], k = technique(ere);
+  return { ...b, degats: b.degats && b.degats * k, vie: b.vie && b.vie * k };
+}
+/** Ce que rend la vente d'un piège. */
+export const ventePiege = role => Math.floor(PIEGES[role].cout * 0.7);
 
 // ------------------------------------------------------------------ vagues
 export const nbVagues = n => Math.min(15, 6 + Math.floor((n - 1) / 3));

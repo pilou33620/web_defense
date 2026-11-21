@@ -2,15 +2,16 @@
 import { THREE, scene, cam, posCase, surTap, chaqueImage, qualite, reglerQualite } from '../graphismes/rendu/scene.js';
 import * as plateau from '../graphismes/rendu/plateau.js';
 import { appliquerMeteo } from '../graphismes/rendu/meteo.js';
-import { climat } from '../graphismes/rendu/vie.js';
+import { climat, majVie } from '../graphismes/rendu/vie.js';
 import { majRoutes } from '../graphismes/rendu/routes.js';
 import { etiquette, toutEffacer } from '../graphismes/rendu/etiquettes.js';
-import { ERES, STYLES, VOLANTS, tour, tirer, ennemi, avancer, abattre, toucher, projectile, suivreTir, barreVie, anneauPortee, batimentVille, animerVille, explosion, eclaboussure, rayon, chute } from '../graphismes/rendu/defense.js';
+import { ERES, STYLES, VOLANTS, PIEGES as ROLES_PIEGES, piege, declencher, oublierVille, tour, tirer, ennemi, avancer, abattre, toucher, projectile, suivreTir, barreVie, anneauPortee, batimentVille, animerVille, explosion, eclaboussure, rayon, chute } from '../graphismes/rendu/defense.js';
 import * as R from './regles.js';
 import { genererCarte, constructible } from './carte.js';
 
 const $ = id => document.getElementById(id);
 const DESC = { rapide: 'Tir rapide, une cible', zone: 'Explosion : touche un groupe', lent: 'Ralentit les ennemis', loin: 'Longue portée, perce les armures' };
+const DESC_PIEGE = { pointes: 'Blesse à chaque passage, s’émousse', boue: 'Ralentit de moitié sur la case', mine: 'Explose une fois autour d’elle', barrage: 'Arrête les ennemis, qui le frappent' };
 
 // ------------------------------------------------------------------ progression (dans le navigateur)
 const CLE = 'web_defense.progres';
@@ -26,13 +27,14 @@ const retirer = o => { scene.remove(o); const k = poses.indexOf(o); if (k >= 0) 
 
 function demarrer(n) {
   for (const o of [...poses]) retirer(o);
+  for (const b of S?.villeBat || []) oublierVille(b);
   toutEffacer();
   const carte = genererCarte(n), E = ERES[R.ereDe(n)];
   S = {
     n, E, style: E.style, carte, or: R.orDepart(n), vies: R.VIES, total: R.nbVagues(n), w: 0, file: [], prochain: 0,
-    attente: R.ATTENTE_DEBUT, tours: new Map(), ennemis: [], tirs: [], vitesse: S?.vitesse || 1, pause: false, fini: false, t: 0,
+    attente: R.ATTENTE_DEBUT, tours: new Map(), pieges: new Map(), villeBat: [], ennemis: [], tirs: [], vitesse: S?.vitesse || 1, pause: false, fini: false, t: 0,
   };
-  window.jeu = S; window.essai = { batir, ameliorer, lancerVague };  // pour les essais (console, tests du navigateur)
+  window.jeu = S; window.essai = { batir, ameliorer, lancerVague, poserPiege };  // pour les essais (console, tests du navigateur)
   // le plateau, son temps et le chemin (une route de l'époque)
   plateau.construire(carte);
   fermerPanneau();
@@ -50,8 +52,9 @@ function demarrer(n) {
   // la ville à défendre
   carte.ville.forEach((i, k) => {
     const b = batimentVille(E, k === 0, n * 7 + k, carte.saison), p = posCase(i);
-    b.groupe.position.set(p.x, plateau.dessus(i), p.z); ajouter(b.groupe); animerVille(b);
+    b.groupe.position.set(p.x, plateau.dessus(i), p.z); ajouter(b.groupe); animerVille(b); S.villeBat.push(b);
   });
+  vivre(carte, E, neige);
   const d = posCase(carte.chemin[0]), v = posCase(carte.ville[0]);
   etiquette('entree', '<div class="ban" style="--c:#b8322a">⚔ Entrée</div>', d.x, 0.6, d.z);
   etiquette('ville', `<div class="ban" style="--c:#2f5fa8">${E.an < 0 ? 'Oppidum' : 'Ville'}</div>`, v.x, 1.4, v.z);
@@ -66,6 +69,19 @@ function demarrer(n) {
   majHud();
 }
 
+// la vie du monde (vie.js) : bêtes dans les prés, faune des lisières, bateaux au large, oiseaux, paysans aux champs, gens de la ville,
+// lavandières, linge, lucioles, fenêtres la nuit… Elle lit un état de partie au format de web_royaumes : on lui en donne un.
+function vivre(carte, E, neige) {
+  majVie({
+    tour: 1, mois: [0, 3, 6, 9][carte.saison], saison: carte.saison, epoque: { cle: E.bat || (E.style === 'antique' ? 'ancien' : 'industrie') },
+    royaumes: [{ id: 0, couleur: '#2f5fa8' }], joueur: { techs: [] }, meteo: { neige_sol: neige },
+    villes: [{ id: 0, case: carte.ville[0], proprio: 0, capitale: true, nom: 'Ville', niveau: 3, pop: 4 }],
+    batiments: carte.ville.map((c, k) => ({ id: 'ville' + k, cle: k ? 'maison' : 'hotel', case: c, reste: 0, face: 0, ville: 0, proprio: 0 })),
+    routes: carte.chemin.slice(1).map((c, k) => [carte.chemin[k], c]),
+    cases: { foret: carte.foret, arbres: carte.arbres, proprio: carte.terrain.map(t => t ? 0 : -1) },
+  }, null);
+}
+
 // ------------------------------------------------------------------ le long du chemin
 const _p = { x: 0, y: 0, z: 0, dx: 0, dz: 1 };
 function surChemin(s) {
@@ -74,6 +90,12 @@ function surChemin(s) {
   const a = P[k - 1], b = P[k], l = b.s - a.s || 1, u = Math.max(0, Math.min(1, (s - a.s) / l));
   _p.x = a.x + (b.x - a.x) * u; _p.z = a.z + (b.z - a.z) * u; _p.y = a.y + (b.y - a.y) * u; _p.dx = (b.x - a.x) / l; _p.dz = (b.z - a.z) / l;
   return _p;
+}
+/** La case du chemin (son rang) où se trouve la distance s. */
+function rangA(s) {
+  const P = S.pts; let k = 1;
+  while (k < P.length - 1 && P[k].s < s) k++;
+  return (s - P[k - 1].s) / (P[k].s - P[k - 1].s || 1) < 0.5 ? k - 1 : k;
 }
 
 // ------------------------------------------------------------------ ennemis
@@ -97,8 +119,17 @@ function majEnnemis(dt) {
     const e = S.ennemis[k];
     if (e.vie <= 0) { if (e.tombe) poses.splice(poses.indexOf(e.m.groupe), 1); else retirer(e.m.groupe); retirer(e.b.objet); e.b.objet.children[1].material.dispose(); S.ennemis.splice(k, 1); continue; }
     if (e.lent > 0) e.lent -= dt;
-    const pas = e.v * (e.lent > 0 ? 1 - e.lentF : 1) * dt;
-    e.s += pas; avancer(e.m, pas, dt);
+    const ici = rangA(e.s), sol = !e.m.vol;  // les volants passent au-dessus des pièges
+    // une barricade debout sur la case suivante : l'ennemi s'arrête et la frappe
+    const devant = rangA(e.s + 0.45), bar = sol && devant !== ici ? S.pieges.get(S.carte.chemin[devant]) : null;
+    if (bar?.role === 'barrage' && bar.vie > 0) { frapperBarrage(bar, R.ENNEMIS[e.genre].coup * R.difficulte(S.n) * dt); avancer(e.m, 0, dt); }
+    else {
+      const boue = sol && S.pieges.get(S.carte.chemin[ici])?.role === 'boue';
+      const pas = e.v * (e.lent > 0 ? 1 - e.lentF : 1) * (boue ? 1 - R.PIEGES.boue.ralenti : 1) * dt;
+      e.s += pas; avancer(e.m, pas, dt);
+    }
+    const rang = rangA(e.s);
+    if (sol && rang !== e.rang) { e.rang = rang; entrer(e, S.carte.chemin[rang]); }
     if (e.s >= S.longueur) {  // la ville est atteinte
       S.vies = Math.max(0, S.vies - R.ENNEMIS[e.genre].degats); e.vie = 0;
       explosion(e.x, e.y + 0.2, e.z, 0.5); choc();
@@ -110,6 +141,43 @@ function majEnnemis(dt) {
     e.m.groupe.rotation.y = Math.atan2(p.dx, p.dz);
     e.b.objet.position.set(e.x, e.y + (e.genre === 'chef' ? 1.05 : 0.6), e.z);
   }
+}
+
+// ------------------------------------------------------------------ pièges
+const piegeable = i => S.carte.chemin.includes(i) && i !== S.carte.chemin[0] && i !== S.carte.ville[0];
+function poserPiege(i, role) {
+  const st = R.statsPiege(role, R.ereDe(S.n));
+  if (S.or < st.cout || S.pieges.has(i) || !piegeable(i)) return;
+  S.or -= st.cout;
+  const k = S.carte.chemin.indexOf(i), a = S.pts[Math.max(0, k - 1)], b = S.pts[Math.min(S.pts.length - 1, k + 1)], p = S.pts[k];
+  const m = piege(role, S.E, { pop: true });
+  m.groupe.position.set(p.x, p.y, p.z); m.groupe.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);  // en travers de la route
+  ajouter(m.groupe);
+  S.pieges.set(i, { i, role, m, st, charges: st.charges, arme: true, vie: st.vie });
+  ouvrirPiege(i);
+}
+/** Un ennemi au sol entre sur une case : son piège se déclenche. */
+function entrer(e, i) {
+  const p = S.pieges.get(i); if (!p) return;
+  if (p.role === 'pointes' && p.charges > 0) { p.charges--; p.m.usure = p.charges / p.st.charges; declencher(p.m); blesser(e, p.st.degats, 'piege'); }
+  if (p.role === 'boue') eclaboussure(e.x, plateau.hauteurEn(e.x, e.z), e.z, 0x6a4a28, 0.25);
+  if (p.role === 'mine' && p.arme) {
+    p.arme = p.m.arme = false;
+    const c = posCase(i), y = plateau.dessus(i);
+    for (const o of S.ennemis) if (!o.m.vol && (o.x - c.x) ** 2 + (o.z - c.z) ** 2 <= p.st.rayon ** 2) blesser(o, p.st.degats, 'piege');
+    explosion(c.x, y, c.z, p.st.rayon * 0.7);
+  }
+}
+function frapperBarrage(p, coup) {
+  p.vie -= coup; p.m.vie = Math.max(0, p.vie / p.st.vie);
+  if ((p.prochainCoup = (p.prochainCoup ?? 0) - 1) <= 0) { declencher(p.m); p.prochainCoup = 8; }
+  if (p.vie <= 0) { const c = posCase(p.i); chute(c.x, plateau.dessus(p.i), c.z, true); }
+}
+const usePiege = p => p.role === 'pointes' ? p.charges < p.st.charges : p.role === 'mine' ? !p.arme : p.role === 'barrage' ? p.vie < p.st.vie : false;
+function rearmer(i) {
+  const p = S.pieges.get(i); if (!p || !usePiege(p) || S.or < p.st.rearme) return false;
+  S.or -= p.st.rearme; p.charges = p.st.charges; p.arme = p.m.arme = true; p.vie = p.st.vie; Object.assign(p.m, { usure: 1, vie: 1 });
+  return true;
 }
 
 // ------------------------------------------------------------------ tours et tirs
@@ -268,9 +336,38 @@ function ouvrirTour(i) {
   $('panneau').hidden = false;
   majPanneau();
 }
+function ouvrirPosePiege(i) {
+  panneau = { genre: 'poser', i }; plateau.selection(i, 0xffd34d); montrerAnneau(null);
+  const noms = STYLES[S.style].pieges;
+  $('panneau').innerHTML = `<h2>Poser un piège sur la route <button type="button" data-fermer aria-label="Fermer">✕</button></h2>
+    <div class="choix">${ROLES_PIEGES.map((r, k) => `<button type="button" data-piege="${r}"><span class="nom">${noms[k]}</span><span class="prix">🪙 ${R.PIEGES[r].cout}</span><span class="desc">${DESC_PIEGE[r]}</span></button>`).join('')}</div>`;
+  $('panneau').hidden = false;
+  for (const b of $('panneau').querySelectorAll('[data-piege]')) b.addEventListener('click', () => poserPiege(i, b.dataset.piege));
+  majPanneau();
+}
+function ouvrirPiege(i) { panneau = { genre: 'piege', i, cle: '' }; plateau.selection(i, 0xffffff); montrerAnneau(null); $('panneau').hidden = false; majPanneau(); }
+function etatPiege(p) {
+  if (p.role === 'pointes') return `${p.charges} passages sur ${p.st.charges} · ${Math.round(p.st.degats)} dégâts`;
+  if (p.role === 'mine') return p.arme ? `Armée · ${Math.round(p.st.degats)} dégâts autour d’elle` : 'Elle a sauté : à réarmer';
+  if (p.role === 'barrage') return p.vie > 0 ? `Solidité ${Math.ceil(p.vie)} sur ${Math.round(p.st.vie)}` : 'Détruite : à relever';
+  return `Ralentit de ${Math.round(p.st.ralenti * 100)} %, ne s’use pas`;
+}
 function majPanneau() {
   const el = $('panneau');
   if (panneau.genre === 'construire') { for (const b of el.querySelectorAll('[data-role]')) b.disabled = S.or < R.TOURS[b.dataset.role].cout; return; }
+  if (panneau.genre === 'poser') { for (const b of el.querySelectorAll('[data-piege]')) b.disabled = S.or < R.PIEGES[b.dataset.piege].cout; return; }
+  if (panneau.genre === 'piege') {
+    const p = S.pieges.get(panneau.i), us = usePiege(p), cle = `${etatPiege(p)}|${us && S.or >= p.st.rearme}`;
+    if (cle === panneau.cle) return;
+    panneau.cle = cle;
+    el.innerHTML = `<h2>${STYLES[S.style].pieges[ROLES_PIEGES.indexOf(p.role)]} <button type="button" data-fermer aria-label="Fermer">✕</button></h2>
+      <div class="stats"><span>${etatPiege(p)}</span><span>${DESC_PIEGE[p.role]}</span></div>
+      <div class="actions">${p.st.rearme ? `<button type="button" data-rearmer ${!us || S.or < p.st.rearme ? 'disabled' : ''}>Réarmer <span class="prix">🪙 ${p.st.rearme}</span></button>` : ''}
+        <button type="button" data-vendre>Vendre <span class="prix">+${R.ventePiege(p.role)}</span></button></div>`;
+    el.querySelector('[data-rearmer]')?.addEventListener('click', () => { if (rearmer(p.i)) { panneau.cle = ''; majPanneau(); } });
+    el.querySelector('[data-vendre]').addEventListener('click', () => { S.or += R.ventePiege(p.role); retirer(p.m.groupe); S.pieges.delete(p.i); fermerPanneau(); });
+    return;
+  }
   const t = S.tours.get(panneau.i), up = R.coutAmelioration(t.role, t.niveau), cle = `${t.niveau}|${up != null && S.or >= up}`;
   if (cle === panneau.cle) return;
   panneau.cle = cle;
@@ -292,7 +389,9 @@ $('panneau').addEventListener('click', e => { if (e.target.closest('[data-fermer
 surTap(i => {
   if (!S || S.fini || !$('menu').hidden) return;
   if (S.tours.has(i)) return ouvrirTour(i);
+  if (S.pieges.has(i)) return ouvrirPiege(i);
   if (constructible(S.carte, i)) return ouvrirConstruction(i);
+  if (piegeable(i)) return ouvrirPosePiege(i);
   fermerPanneau();
 });
 
@@ -312,9 +411,14 @@ function ouvrirAide() {
         return `<tr><td>${T.tours[r][0]}</td><td class="n">🪙 ${R.TOURS[r].cout}</td><td class="n">${Math.round(a.degats)} → ${Math.round(b.degats)}</td><td class="n">${(1 / a.cadence).toFixed(1)}</td><td class="n">${a.portee.toFixed(1)}</td><td>${DESC[r]}${r === 'lent' ? ` (−${Math.round(R.TOURS.lent.ralenti * 100)} % pendant ${R.TOURS.lent.duree} s)` : ''}</td></tr>`; }).join('')}
       </tbody></table></div>
     <p class="note">Les tours n'ont pas de points de vie : les ennemis ne les attaquent pas, ils marchent sur la ville. Sur une colline, +15 % de portée.</p>
+    <h2>Pièges <small>(sur la route ; les volants passent au-dessus)</small></h2><div class="defile"><table>
+      <thead><tr><th>Piège</th><th>Coût</th><th>Attaque</th><th>Vie</th><th>Réarmer</th><th>Effet</th></tr></thead><tbody>
+      ${ROLES_PIEGES.map((r, k) => { const p = R.statsPiege(r, ere);
+        return `<tr><td>${T.pieges[k]}</td><td class="n">🪙 ${p.cout}</td><td class="n">${p.degats ? Math.round(p.degats) + (r === 'pointes' ? ` × ${p.charges} passages` : ' autour') : r === 'boue' ? `−${Math.round(p.ralenti * 100)} % de vitesse` : '—'}</td><td class="n">${p.vie ? Math.round(p.vie) : '—'}</td><td class="n">${p.rearme ? '🪙 ' + p.rearme : '—'}</td><td>${DESC_PIEGE[r]}</td></tr>`; }).join('')}
+      </tbody></table></div>
     <h2>Attaquants</h2><div class="defile"><table>
-      <thead><tr><th>Ennemi</th><th>Vie (vague 1 → ${S.total})</th><th>Attaque sur la ville</th><th>Vitesse</th><th>Armure</th><th>Butin</th></tr></thead><tbody>
-      ${Object.entries(R.ENNEMIS).map(([g, e]) => `<tr><td>${T.ennemis[g]}${VOLANTS.has(S.style + ':' + g) ? ' (vole)' : ''}</td><td class="n">${Math.round(e.vie * d)} → ${Math.round(e.vie * dmax)}</td><td class="n">−${e.degats} ${e.degats > 1 ? 'vies' : 'vie'}</td><td class="n">${e.vitesse.toFixed(2)}</td><td class="n">${e.armure ? Math.round(e.armure * 100) + ' %' : '—'}</td><td class="n">🪙 ${e.or}</td></tr>`).join('')}
+      <thead><tr><th>Ennemi</th><th>Vie (vague 1 → ${S.total})</th><th>Attaque sur la ville</th><th>Coups sur barricade</th><th>Vitesse</th><th>Armure</th><th>Butin</th></tr></thead><tbody>
+      ${Object.entries(R.ENNEMIS).map(([g, e]) => `<tr><td>${T.ennemis[g]}${VOLANTS.has(S.style + ':' + g) ? ' (vole)' : ''}</td><td class="n">${Math.round(e.vie * d)} → ${Math.round(e.vie * dmax)}</td><td class="n">−${e.degats} ${e.degats > 1 ? 'vies' : 'vie'}</td><td class="n">${VOLANTS.has(S.style + ':' + g) ? 'vole au-dessus' : Math.round(e.coup * d) + ' par s'}</td><td class="n">${e.vitesse.toFixed(2)}</td><td class="n">${e.armure ? Math.round(e.armure * 100) + ' %' : '—'}</td><td class="n">🪙 ${e.or}</td></tr>`).join('')}
       </tbody></table></div>
     <p class="note">L'armure arrête une part des dégâts, sauf ceux de la tour « ${T.tours.loin[0]} », qui perce. Vitesse en cases par seconde. La ville a ${R.VIES} vies.</p>`;
   $('aide').hidden = false;
