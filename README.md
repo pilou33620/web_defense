@@ -8,7 +8,7 @@ change **tous les cinq niveaux**, de l'Antiquité à 2035 (quinze époques), pui
 ## Jouer
 
 ```sh
-python3 -m http.server 8000      # à la racine du dépôt
+python3 serveur.py --port 8000    # ou : python3 -m http.server 8000
 # puis ouvrir http://localhost:8000/
 ```
 
