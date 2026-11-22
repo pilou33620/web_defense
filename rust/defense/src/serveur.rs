@@ -7,13 +7,14 @@
 //! Depuis un autre appareil du réseau, la page demande une fois le code d'appairage affiché dans le
 //! terminal (web_tools_commun) ; ce poste-ci n'en a jamais besoin.
 
+use std::net::IpAddr;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use web_tools_commun::appairage::{self, Garde};
-use web_tools_commun::serveur::{decoder_url, Reponse, Requete, Serveur};
+use web_tools_commun::serveur::{decoder_chemin, Reponse, Requete, Serveur};
 
 pub const NOM: &str = "web_defense";
 pub const PORT: u16 = 8801;
@@ -58,7 +59,7 @@ fn type_mime(p: &Path) -> Option<&'static str> {
 /// Un fichier du jeu (liste blanche : dossier, composants sans point, extension connue) ; 404 sinon.
 fn fichier(chemin: &str) -> Reponse {
     let introuvable = || Reponse::texte(404, "introuvable");
-    let rel = decoder_url(if chemin == "/" { "index.html" } else { chemin.trim_start_matches('/') });
+    let rel = decoder_chemin(if chemin == "/" { "index.html" } else { chemin.trim_start_matches('/') });
     let p = Path::new(&rel);
     let sur = p.components().all(|c| matches!(c, Component::Normal(s) if !s.to_string_lossy().starts_with('.')));
     let permis = rel == "index.html" || p.iter().next().is_some_and(|c| DOSSIERS.iter().any(|d| c == *d));
@@ -191,6 +192,7 @@ pub fn mise_a_jour(dossier: &Path) -> (bool, String) {
 #[derive(Debug, Default, PartialEq)]
 pub struct Args {
     pub port: u16,
+    pub host: String,
     pub local: bool,
     pub sans_navigateur: bool,
     pub sans_maj: bool,
@@ -212,7 +214,7 @@ pub fn lire_args(argv: &[String], port_env: Option<&str>, hote_env: Option<&str>
         Some(v) => v.trim().parse().map_err(|_| format!("$PORT invalide : {v}"))?,
         None => PORT,
     };
-    let mut a = Args { port, local: hote_env.is_some_and(hote_local), ..Default::default() };
+    let mut a = Args { port, host: hote_env.unwrap_or("").to_string(), local: hote_env.is_some_and(hote_local), ..Default::default() };
     let mut i = 0;
     while i < argv.len() {
         let x = argv[i].as_str();
@@ -234,7 +236,10 @@ pub fn lire_args(argv: &[String], port_env: Option<&str>, hote_env: Option<&str>
                 let v = valeur(val)?;
                 a.port = v.parse().map_err(|_| format!("port invalide : {v}"))?;
             }
-            "--host" => a.local = hote_local(&valeur(val)?),
+            "--host" => {
+                a.host = valeur(val)?;
+                a.local = hote_local(&a.host);
+            }
             "--local" if val.is_none() => a.local = true,
             "--sans-navigateur" if val.is_none() => a.sans_navigateur = true,
             "--sans-pause" if val.is_none() => {} // rien à attendre : le serveur ne pose jamais de question
@@ -245,6 +250,26 @@ pub fn lire_args(argv: &[String], port_env: Option<&str>, hote_env: Option<&str>
         i += 1;
     }
     Ok(a)
+}
+
+/// Où écouter : Some(ip) pour une seule adresse du poste (--host 192.168.1.20), None pour la boucle
+/// locale ou tout le réseau (0.0.0.0, ::, ou rien). Rend aussi le mode réseau de la Garde : vrai dès
+/// que l'adresse n'est pas une boucle locale (sinon le réseau entrerait sans code d'appairage).
+pub fn ecoute(a: &Args) -> Result<(Option<IpAddr>, bool), String> {
+    if a.local || a.host == "localhost" {
+        return Ok((None, false));
+    }
+    if a.host.is_empty() {
+        return Ok((None, true));
+    }
+    let ip = a.host.parse::<IpAddr>().map_err(|_| format!("--host (ou $HOST) attend une adresse IP : {}", a.host))?.to_canonical();
+    if ip.is_loopback() {
+        Ok((None, false))
+    } else if ip.is_unspecified() {
+        Ok((None, true))
+    } else {
+        Ok((Some(ip), !ip.is_loopback()))
+    }
 }
 
 fn ouvrir_navigateur(url: &str) {
@@ -289,9 +314,23 @@ pub fn main() {
         }
     }
 
-    let reseau = !args.local;
-    let srv = match Serveur::ouvrir(args.port, reseau, 10) {
+    let (ip, reseau) = match ecoute(&args) {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!("{USAGE}\ndefense: {e}");
+            std::process::exit(2);
+        }
+    };
+    let ouvert = match ip {
+        Some(ip) => Serveur::ouvrir_sur(ip, args.port, 10),
+        None => Serveur::ouvrir(args.port, reseau, 10),
+    };
+    let srv = match ouvert {
         Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::AddrNotAvailable => {
+            println!("L'adresse {} n'est pas une adresse de ce poste (--host).", args.host);
+            std::process::exit(1);
+        }
         Err(e) => {
             println!("Aucun port libre ({e}). Essayez --port <numéro>.");
             std::process::exit(1);
@@ -303,11 +342,18 @@ pub fn main() {
     }
     let garde = GARDE.get_or_init(|| Garde::new(NOM, reseau, None, None));
     garde.brancher(&srv); // en mode réseau : HTTPS sur le même port (le jeton ne passe plus en clair)
-    let url = format!("http://localhost:{port}");
+    // une seule adresse du poste : localhost n'y répond pas, le navigateur ouvre cette adresse
+    let url = match ip {
+        Some(ip) => garde.adresse(&ip.to_string(), port),
+        None => format!("http://localhost:{port}"),
+    };
     println!("🏰 {NOM} tourne sur {url}  (Ctrl+C pour quitter)");
     if reseau {
         println!("   depuis un autre appareil du réseau :");
-        let adresses = appairage::adresses_poste();
+        let adresses = match ip {
+            Some(ip) => vec![ip.to_string()],
+            None => appairage::adresses_poste(),
+        };
         for ip in &adresses {
             println!("      {}", garde.adresse(ip, port));
         }
@@ -358,6 +404,28 @@ mod essais {
             assert!(lire_args(&a(faux), None, None).is_err(), "{faux:?}");
         }
         assert!(lire_args(&[], Some("abc"), None).is_err());
+    }
+
+    #[test]
+    fn adresse_d_ecoute() {
+        let e = |l: &[&str], hote: Option<&str>| ecoute(&lire_args(&a(l), None, hote).unwrap());
+        // tout le réseau (défaut) ou la boucle locale : Serveur::ouvrir
+        assert_eq!(e(&[], None), Ok((None, true)));
+        assert_eq!(e(&["--host=0.0.0.0"], None), Ok((None, true)));
+        assert_eq!(e(&["--host", "::"], None), Ok((None, true)));
+        assert_eq!(e(&["--local", "--host", "0.0.0.0"], None), Ok((None, true)));
+        for local in [&["--local"][..], &["--host", "127.0.0.1"], &["--host=localhost"], &["--host", "::1"], &["--host", "::ffff:127.0.0.1"], &["--host", "192.168.1.20", "--local"]] {
+            assert_eq!(e(local, None), Ok((None, false)), "{local:?}");
+        }
+        assert_eq!(e(&[], Some("127.0.0.1")), Ok((None, false)));
+        // une seule adresse du poste : Serveur::ouvrir_sur, et la Garde en mode réseau (code d'appairage)
+        let ip: IpAddr = "192.168.1.20".parse().unwrap();
+        assert_eq!(e(&["--host", "192.168.1.20"], None), Ok((Some(ip), true)));
+        assert_eq!(e(&["--local", "--host", "::ffff:192.168.1.20"], None), Ok((Some(ip), true)));
+        assert_eq!(e(&[], Some("192.168.1.20")), Ok((Some(ip), true)));
+        let v6: IpAddr = "fd7a:115c:a1e0::1".parse().unwrap();
+        assert_eq!(e(&["--host", "fd7a:115c:a1e0::1"], None), Ok((Some(v6), true)));
+        assert!(e(&["--host", "monpc.local"], None).is_err());
     }
 
     fn demander(port: u16, methode: &str, chemin: &str, hote: &str) -> (u16, String) {

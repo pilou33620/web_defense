@@ -22,7 +22,7 @@ version. Rust n'est donc pas nécessaire. Le jeu marche hors ligne une fois l'ex
 |---|---|
 | `--port N` (ou `--port=N`) | port d'écoute, 8801 par défaut (`$PORT` s'il est défini) ; s'il est pris, les 9 suivants sont essayés |
 | `--local` | n'écouter que sur cet appareil (127.0.0.1), sans code d'appairage |
-| `--host ADRESSE` | `127.0.0.1`, `localhost` ou `::1` : comme `--local` ; autre chose : tout le réseau local (défaut, ou `$HOST`) |
+| `--host ADRESSE` | `127.0.0.1`, `localhost` ou `::1` : comme `--local` ; `0.0.0.0` ou `::` : tout le réseau local (défaut, ou `$HOST`) ; une adresse IP du poste (`192.168.1.20`) : n'écouter que sur elle, avec code d'appairage |
 | `--sans-navigateur` | ne pas ouvrir le navigateur au démarrage |
 | `--sans-pause` | accepté pour web_launcher (le serveur n'attend jamais de touche) |
 | `--sans-maj` | ne pas chercher de mise à jour au démarrage |
