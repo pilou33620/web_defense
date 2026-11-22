@@ -214,6 +214,14 @@ pub fn lire_args(argv: &[String], port_env: Option<&str>, hote_env: Option<&str>
         Some(v) => v.trim().parse().map_err(|_| format!("$PORT invalide : {v}"))?,
         None => PORT,
     };
+    // HOST de l'environnement : zsh et tcsh y mettent le nom du poste ; ce qui n'est pas une IP est ignoré
+    let hote_env = hote_env.filter(|h| {
+        let ip = h.is_empty() || *h == "localhost" || h.parse::<IpAddr>().is_ok();
+        if !ip {
+            eprintln!("(variable HOST={h} ignorée : ce n'est pas une adresse IP)");
+        }
+        ip
+    });
     let mut a = Args { port, host: hote_env.unwrap_or("").to_string(), local: hote_env.is_some_and(hote_local), ..Default::default() };
     let mut i = 0;
     while i < argv.len() {
@@ -262,7 +270,7 @@ pub fn ecoute(a: &Args) -> Result<(Option<IpAddr>, bool), String> {
     if a.host.is_empty() {
         return Ok((None, true));
     }
-    let ip = a.host.parse::<IpAddr>().map_err(|_| format!("--host (ou $HOST) attend une adresse IP : {}", a.host))?.to_canonical();
+    let ip = a.host.parse::<IpAddr>().map_err(|_| format!("--host attend une adresse IP : {}", a.host))?.to_canonical();
     if ip.is_loopback() {
         Ok((None, false))
     } else if ip.is_unspecified() {
@@ -426,6 +434,11 @@ mod essais {
         let v6: IpAddr = "fd7a:115c:a1e0::1".parse().unwrap();
         assert_eq!(e(&["--host", "fd7a:115c:a1e0::1"], None), Ok((Some(v6), true)));
         assert!(e(&["--host", "monpc.local"], None).is_err());
+        // HOST de l'environnement qui n'est pas une IP (nom du poste) : ignorée, défaut tout le réseau ;
+        // la même valeur passée en option reste une erreur (code 2)
+        assert_eq!(e(&[], Some("monpc")), Ok((None, true)));
+        assert_eq!(e(&["--host", "192.168.1.20"], Some("monpc")), Ok((Some(ip), true)));
+        assert!(e(&["--host", "monpc"], None).is_err());
     }
 
     fn demander(port: u16, methode: &str, chemin: &str, hote: &str) -> (u16, String) {
