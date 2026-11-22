@@ -8,15 +8,28 @@ change **tous les cinq niveaux**, de l'Antiquité à 2035 (quinze époques), pui
 ## Jouer
 
 ```sh
-./lancer.sh                       # Linux, macOS, Raspberry Pi ; sous Windows : double-clic sur « Lancer le jeu.bat » (ou lancer.bat)
+./demarrer_WEB_DEFENSE.sh         # Linux, macOS, Raspberry Pi ; sous Windows : double-clic sur demarrer_WEB_DEFENSE.cmd
 # puis ouvrir http://localhost:8801/
 ```
 
 Le serveur est un petit exécutable en Rust (`rust/defense`) : il sert la page et ne fait rien d'autre, le jeu tourne dans le
-navigateur (modules JS) et y garde sa progression. `lancer.sh` (ou `lancer.bat`) obtient l'exécutable avec `binaires.sh`
-(`binaires.cmd`) : compilé sur place si Rust (`cargo`) est installé, sinon téléchargé depuis la publication GitHub
-« binaires » (Linux x86_64 et aarch64 pour le Raspberry Pi, macOS, Windows), vérifié par son empreinte SHA-256, une fois par
-version. Rust n'est donc pas nécessaire. Le jeu marche hors ligne une fois l'exécutable obtenu, sur ordinateur et sur tablette.
+navigateur (modules JS) et y garde sa progression. Rust n'est pas nécessaire. `demarrer_WEB_DEFENSE` garde la fenêtre ouverte
+en cas d'erreur, avec la raison, et le premier lancement masque le fichier de l'autre système. `lancer.sh`, `lancer.bat` et
+« Lancer le jeu.bat » restent comme relais vers lui, pour les raccourcis existants. Le jeu marche hors ligne une fois
+l'exécutable obtenu, sur ordinateur et sur tablette.
+
+**Le plus simple : l'archive de production** (ni git ni Rust). Dans la
+[publication « binaires »](https://github.com/pilou33620/web_defense/releases/tag/binaires), prendre l'archive du système :
+`web_defense-prod-linux-aarch64.tar.gz` (Raspberry Pi 64 bits), `web_defense-prod-linux-x86_64.tar.gz`,
+`web_defense-prod-macos-aarch64.tar.gz` ou `web_defense-prod-windows-x86_64.zip`. La décompresser : elle donne un dossier
+`web_defense/` (exécutable dans `bin/`, page, scripts de démarrage, sans sources), puis lancer `demarrer_WEB_DEFENSE`. Elle se
+met à jour seule au démarrage, sans git : si une nouvelle archive est publiée, elle est téléchargée, vérifiée (SHA-256) et
+recopiée par-dessus, puis le jeu redémarre. La progression est gardée dans le navigateur : rien à perdre.
+
+**Pour développer : le dépôt git.** `git clone https://github.com/pilou33620/web_defense.git`, puis `./demarrer_WEB_DEFENSE.sh`.
+`scripts/binaires.sh` (`scripts\binaires.cmd`) obtient l'exécutable : compilé sur place si Rust (`cargo`) est installé, sinon
+téléchargé depuis la publication « binaires » (Linux x86_64 et aarch64 pour le Raspberry Pi, macOS, Windows), vérifié par son
+empreinte SHA-256, une fois par version.
 
 | Option | Rôle |
 |---|---|
@@ -33,8 +46,8 @@ jamais besoin. La première fois, installer sur l'appareil la CA du poste (lien 
 le navigateur signale un certificat inconnu. Les appareils hors du réseau local et de Tailscale sont refusés.
 
 **Mises à jour** : au démarrage (sauf `--sans-maj`), le jeu fait `git fetch` puis une avance rapide (`git merge --ff-only`)
-s'il y a du nouveau, jamais par-dessus des fichiers modifiés ou des commits locaux ; `lancer.sh` reprend alors l'exécutable de
-la nouvelle version et relance le jeu. Sous web_launcher, c'est le launcher qui met à jour.
+s'il y a du nouveau, jamais par-dessus des fichiers modifiés ou des commits locaux ; `demarrer_WEB_DEFENSE` reprend alors
+l'exécutable de la nouvelle version et relance le jeu. Copie de production : par la publication « binaires » (voir plus haut). Sous web_launcher, c'est le launcher qui met à jour.
 
 **Tests** : `cargo test -p defense` (options, fichiers servis et refusés, garde, mise à jour sur un faux dépôt git) et
 `node tests/regles.test.mjs` (règles et cartes). La CI GitHub lance les deux à chaque envoi.
@@ -79,8 +92,9 @@ Chaque nouvelle époque renforce les tours (+25 %), ce qui soulage un peu au dé
 
 ```
 index.html, css/jeu.css
-rust/defense/      le serveur local (Rust) : sert la page, garde et appairage (web_tools_commun), mise à jour par git
-lancer.sh, lancer.bat, binaires.sh, binaires.cmd   obtiennent l'exécutable (compilé ou téléchargé) et le lancent
+rust/defense/      le serveur local (Rust) : sert la page, garde et appairage (web_tools_commun), mise à jour
+demarrer_WEB_DEFENSE.sh, .cmd   obtiennent l'exécutable (scripts/binaires.sh, .cmd : compilé ou téléchargé) et le lancent
+lancer.sh, lancer.bat, Lancer le jeu.bat   relais vers demarrer_WEB_DEFENSE (anciens noms)
 js/jeu.js          la partie : carte dessinée par le moteur, tours, ennemis, tirs, vagues, interface
 js/regles.js       les règles, sans affichage : époques, tours, ennemis, vagues, difficulté
 js/carte.js        la carte d'un niveau (reproductible) : l'île autour du chemin, relief, lacs, forêts, rivière, ville

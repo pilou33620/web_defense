@@ -14,10 +14,13 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use web_tools_commun::appairage::{self, Garde};
+use web_tools_commun::production;
 use web_tools_commun::serveur::{decoder_chemin, Reponse, Requete, Serveur};
 
 pub const NOM: &str = "web_defense";
 pub const PORT: u16 = 8801;
+/// Le dépôt, d'où vient aussi l'archive de production (publication « binaires »).
+const DEPOT: &str = "https://github.com/pilou33620/web_defense";
 
 /// La racine du jeu : le dossier courant s'il contient le jeu, sinon le premier dossier au-dessus de
 /// l'exécutable qui le contient.
@@ -309,10 +312,19 @@ pub fn main() {
     }
     let _ = std::env::set_current_dir(racine());
 
-    // mise à jour depuis git ; lancer.sh reprend alors l'exécutable de la nouvelle version (code 75)
+    // mise à jour : par la publication « binaires » pour une copie de production (archive
+    // web_defense-prod, sans git), sinon par git ; demarrer_WEB_DEFENSE reprend alors l'exécutable
+    // de la nouvelle version (code 75)
     if !args.sans_maj {
-        let (change, message) = mise_a_jour(racine());
-        println!("{message}");
+        let (change, message) = if production::est_copie_prod(racine()) {
+            let r = production::mettre_a_jour(DEPOT, NOM, racine(), &|t| println!("Mises à jour : {t}"));
+            (r == Ok(true), r.err().map(|e| format!("[X] {e}")).unwrap_or_default())
+        } else {
+            mise_a_jour(racine())
+        };
+        if !message.is_empty() {
+            println!("{message}");
+        }
         if change {
             if std::env::var_os("DEFENSE_RELANCEUR").is_some() {
                 println!("Redémarrage du jeu sur la nouvelle version…\n");
@@ -394,7 +406,7 @@ mod essais {
 
     #[test]
     fn ligne_de_commande() {
-        // la commande du catalogue de web_launcher, et --sans-pause de lancer.sh
+        // la commande du catalogue de web_launcher, et --sans-pause de demarrer_WEB_DEFENSE
         let x = lire_args(&a(&["--port", "8801", "--sans-navigateur", "--sans-maj", "--sans-pause"]), None, None).unwrap();
         assert_eq!(x, Args { port: 8801, sans_navigateur: true, sans_maj: true, ..Default::default() });
         assert_eq!(lire_args(&[], None, None).unwrap(), Args { port: PORT, ..Default::default() });

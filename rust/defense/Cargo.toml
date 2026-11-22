@@ -9,4 +9,5 @@ doctest = false
 
 [dependencies]
 # Serveur HTTP/HTTPS et appairage : communs aux web tools (dépôt web_suite)
-web_tools_commun = { git = "https://github.com/pilou33620/web_suite", rev = "bc1f42ca77df7ccfc415a93018640058c82e2efe" }
+# feature production : mise à jour sans git de la copie de production (archive web_defense-prod)
+web_tools_commun = { git = "https://github.com/pilou33620/web_suite", rev = "a9d9d90638718302b92ee862bbd415c16bb218fc", features = ["production"] }
