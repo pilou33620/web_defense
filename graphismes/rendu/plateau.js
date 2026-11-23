@@ -42,7 +42,7 @@ scene.add(groupe);
 
 let C = null, H = [], HM = [], VB = [], familles = [], eau = null, glace = null, liseres = null, surb = null, anneau = null, points = null;
 let saison = 2, neige = 0, gel = 0, sec = 0;  // sec : 0, 1 champs jaunis, 2 grillés (meteo.js, d'après la sécheresse)
-let E = { arbres: [], foret: [], bati: new Set(), routes: new Set(), forts: new Set() }; // état du mois : ce qui change le décor (un fort dégage sa case d'arbres et de buttes)
+let E = { arbres: [], foret: [], bati: new Set(), routes: new Set(), traces: new Map(), sigRoutes: '', forts: new Set() }; // état du mois : ce qui change le décor (un fort dégage sa case d'arbres et de buttes ; traces : case → tracé de ses routes)
 let rivPts = new Map(); // case → points des rivières qui la traversent (pour y écarter arbres et rochers)
 let cascades = [];      // pied des cascades { x, y, z } : leur écume (eau.js)
 let degages = new Set(); // cases des ouvrages de siège et des garnisons (sieges.js, monde.js) : ni arbres, ni buttes, ni champs, comme la case d'un fort
@@ -137,14 +137,16 @@ const MAT_CONTOUR = new THREE.LineBasicMaterial({ color: 0x14130f, transparent: 
 export { matRiv as MAT_RIV };
 
 // ------------------------------------------------------------------ construction
-export function construire(carteServeur) {
+/** etat (facultatif, comme pour majEtat) : l'état de la partie est pris dès la construction, si bien que le décor n'est bâti
+ *  qu'une fois (sans lui, l'appel à majEtat qui suit le rebâtit aussitôt : le double de temps, à chaque nouvelle carte). */
+export function construire(carteServeur, etat) {
   C = carteServeur;
   geo.l = C.l; geo.h = C.h;
   for (const o of [...groupe.children]) jeter(o);
   familles = [];
   const N = C.l * C.h;
   H = new Array(N).fill(0);
-  E = { arbres: C.arbres.slice(), foret: C.foret.slice(), bati: new Set(), routes: new Set(), forts: new Set() };
+  E = { arbres: C.arbres.slice(), foret: C.foret.slice(), bati: new Set(), routes: new Set(), traces: new Map(), sigRoutes: '', forts: new Set() };
   // la mer : un plan translucide sur toute la carte, qui recouvre aussi les lacs
   const marge = 4, lx = Math.sqrt(3) * (C.l + 0.5) + 2 * marge, lz = 1.5 * (C.h - 1) + 2 + 2 * marge;
   eau = new THREE.Mesh(new THREE.PlaneGeometry(lx, lz), matMer);
@@ -159,15 +161,42 @@ export function construire(carteServeur) {
   glace.visible = false;
   groupe.add(glace);
   superpositions(N);
-  rebatir();
+  if (etat) majEtat(etat, true); else rebatir();
   geler(gel);
 }
 /** Un hexagone plat (pointe vers z), non indexé. */
 const hexagone = r => new THREE.CircleGeometry(r, 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 6).toNonIndexed();
 
+// le décor par morceaux (decorProgressif) : cases qui restent à décorer, du centre de la carte vers les bords
+let budgetDecor = 0, fileDecor = null;
+/** ms > 0 : le décor (arbres, rochers, champs) n'est plus bâti d'un coup par construire(), majEtat()… mais par morceaux, au
+ *  plus ms millisecondes par image, du centre de la carte vers les bords ; les cases, le relief et les rivières restent
+ *  bâtis aussitôt. Pour un jeu qui rebâtit souvent une grande carte (web_conquete) : plus d'arrêt de l'image. 0 : d'un coup. */
+export function decorProgressif(ms) { budgetDecor = ms; }
+/** Reste-t-il du décor à poser (decorProgressif) ? */
+export const decorEnCours = () => !!fileDecor;
+const decorer = (DE, i) => { const g0 = genre(i), { x, z, c, r } = posCase(i); decor(DE, i, g0, TERR[g0][1], x, z, c, r); };
+function figerDecor(DE) {
+  const decorF = fige(DE, groupe, MAT_SOL);
+  for (const m of decorF.children) if (m.geometry.attributes.souple) m.material = m.material === MAT_SOL ? MAT_VENT : CONT_VENT;
+  familles.push(decorF);
+}
+chaqueImage(() => {
+  if (!fileDecor) return;
+  // les pièces d'au moins 256 cases sont figées ensemble : quelques dizaines de maillages pour une grande carte, pas des centaines
+  const f = fileDecor, t0 = performance.now();
+  while (f.k < f.liste.length && performance.now() - t0 < budgetDecor) {
+    const fin = Math.min(f.liste.length, f.k + 8); for (; f.k < fin; f.k++) decorer(f.DE, f.liste[f.k]);   // (l'horloge, toutes les 8 cases)
+  }
+  const fini = f.k >= f.liste.length;
+  if (fini || f.k - f.k0 >= 256) { figerDecor(f.DE); f.DE = lot(); f.k0 = f.k; }
+  if (fini) fileDecor = null;
+});
+
 function rebatir() {
   for (const f of familles) jeter(f);
-  const N = C.l * C.h, TU = lot(), DE = lot(), RS = lot(), RE = lot(), bords = [];
+  fileDecor = null;
+  const N = C.l * C.h, TU = lot(), RS = lot(), RE = lot(), bords = [], aDecorer = [];
   for (let i = 0; i < N; i++) H[i] = TERR[genre(i)][1];
   for (let i = 0; i < N; i++) BIO[i] = deduireBiome(i, genre(i));
   relief(N);
@@ -188,13 +217,15 @@ function rebatir() {
       const hc = coins(i, top);
       bords.push(x + Math.sin(a) * R, hc[k] + 0.004, z + Math.cos(a) * R, x + Math.sin(b) * R, hc[(k + 1) % 6] + 0.004, z + Math.cos(b) * R);
     }
-    if (g0 !== 'bati') decor(DE, i, g0, top, x, z, c, r);
+    if (g0 !== 'bati') aDecorer.push(i);
   }
   const traits = new THREE.BufferGeometry(); traits.setAttribute('position', new THREE.Float32BufferAttribute(bords, 3));
   const contours = new THREE.LineSegments(traits, MAT_CONTOUR); groupe.add(contours);
-  const decorF = fige(DE, groupe, MAT_SOL);
-  for (const m of decorF.children) if (m.geometry.attributes.souple) m.material = m.material === MAT_SOL ? MAT_VENT : CONT_VENT;
-  familles = [fige(TU, groupe, MAT_SOL), decorF, fige(RS, groupe, MAT_BERGE), fige(RE, groupe, matRiv), contours];
+  familles = [fige(TU, groupe, MAT_SOL), fige(RS, groupe, MAT_BERGE), fige(RE, groupe, matRiv), contours];
+  if (budgetDecor > 0) {
+    const cx = (C.l - 1) / 2, cz = (C.h - 1) / 2, d = i => ((i % C.l) - cx) ** 2 + (((i / C.l) | 0) - cz) ** 2;
+    fileDecor = { liste: aDecorer.sort((a, b) => d(a) - d(b)), k: 0, k0: 0, DE: lot() };
+  } else { const DE = lot(); for (const i of aDecorer) decorer(DE, i); figerDecor(DE); }
   teinterEaux();
 }
 
@@ -254,12 +285,41 @@ export const casesBaties = () => E.bati;
 /** Le pied des cascades ({ x, y, z }) : l'écume s'y forme (eau.js). */
 export const piedsCascades = () => cascades;
 export const presRiviere = (i, x, z) => (rivPts.get(i) || []).some(v => (v[0] - x) ** 2 + (v[1] - z) ** 2 < 0.13);
-/** Un point au hasard (stable) dans la case, à l'écart des rivières. */
+/** Le point de passage des routes dans la case, un peu décalé du centre : le tracé ondule d'une case à l'autre. */
+export const passage = i => { const q = posCase(i); return [q.x + (hache(q.c, q.r, 17) - 0.5) * 0.3, q.z + (hache(q.c, q.r, 19) - 0.5) * 0.3]; };
+/** Le tracé des routes de la case i vers ses voisines vs (routes.js le dessine, le décor s'en écarte) : des lignes de points
+ *  [x, z, b, u], b le bord d'où part le point (indice dans vs), u de 0 au milieu de ce bord à 1 au point de passage.
+ *  Deux voisines : un virage, courbe du milieu d'un bord au milieu de l'autre par le point de passage ; sinon une ligne
+ *  droite de chaque bord au point de passage. */
+export function traceRoute(i, vs) {
+  const c = passage(i), M = vs.map(v => { const q = passage(v); return [(c[0] + q[0]) / 2, (c[1] + q[1]) / 2]; });
+  if (vs.length === 2) {
+    const [A, B] = M, pts = [];
+    for (let k = 0; k <= 10; k++) {
+      const t = k / 10, u = 1 - t;
+      pts.push([u * u * A[0] + 2 * u * t * c[0] + t * t * B[0], u * u * A[1] + 2 * u * t * c[1] + t * t * B[1], t < 0.5 ? 0 : 1, t < 0.5 ? t * 2 : (1 - t) * 2]);
+    }
+    return [pts];
+  }
+  return M.map((m, b) => Array.from({ length: 6 }, (_, k) => [m[0] + (c[0] - m[0]) * k / 5, m[1] + (c[1] - m[1]) * k / 5, b, k / 5]));
+}
+// le ruban le plus large (route impériale la plus usée, routes.js : 0,1 × 1,6 de demi-largeur) et une marge : le pied d'un arbre
+export const ECART_ROUTE = 0.2;
+const d2Segment = (x, z, [ax, az], [bx, bz]) => {
+  const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+  return (ax + dx * t - x) ** 2 + (az + dz * t - z) ** 2;
+};
+/** Le point (x, z) de la case i tombe-t-il sur le ruban d'une de ses routes ? */
+export const presRoute = (i, x, z) => (E.traces.get(i) || []).some(l => l.some((a, k) => k && d2Segment(x, z, l[k - 1], a) < ECART_ROUTE ** 2));
+/** Un point au hasard (stable) dans la case, à l'écart des rivières et des routes ; une case de route a quatre essais de plus
+ *  (tirés à part : les points des autres cases ne bougent pas), pour que sa forêt reste aussi dense. */
 function auHasard(i, x, z, k, sel, rayon = 0.62) {
-  for (let essai = 0; essai < 4; essai++) {
-    const an = hache(i, k * 4 + essai, sel) * Math.PI * 2, l = Math.sqrt(hache(i, k * 4 + essai, sel + 1)) * rayon;
+  const essais = E.traces.has(i) ? 8 : 4;
+  for (let essai = 0; essai < essais; essai++) {
+    const j = k * 4 + essai % 4, s = sel + (essai >> 2) * 500;
+    const an = hache(i, j, s) * Math.PI * 2, l = Math.sqrt(hache(i, j, s + 1)) * rayon;
     const px = x + Math.cos(an) * l, pz = z + Math.sin(an) * l;
-    if (!presRiviere(i, px, pz)) return [px, pz];
+    if (!presRiviere(i, px, pz) && !presRoute(i, px, pz)) return [px, pz];
   }
   return null;
 }
@@ -354,7 +414,7 @@ function decor(L, i, g0, y, x, z, c, r) {
     // au pied du relief : deux rochers et des cailloux de la couleur du minerai
     const l = g0 === 'montagne' ? 0.66 : 0.5;
     let an = hache(i, 60) * Math.PI * 2;
-    for (let e = 0; e < 5 && presRiviere(i, x + Math.cos(an) * l, z + Math.sin(an) * l); e++) an += Math.PI / 3; // à l'écart de la rivière
+    for (let e = 0; e < 5 && (presRiviere(i, x + Math.cos(an) * l, z + Math.sin(an) * l) || presRoute(i, x + Math.cos(an) * l, z + Math.sin(an) * l)); e++) an += Math.PI / 3; // à l'écart de la rivière et de la route
     const gx = x + Math.cos(an) * l, gz = z + Math.sin(an) * l;
     for (let k = 0; k < 2; k++) p(L, sphere(arrondi((0.6 + hache(i, k, 61) * 0.3) * S0), 0), nv(0x9b958a, 0.4), gx + (k - 0.5) * 0.12, y + 0.05, gz + (hache(i, k, 62) - 0.5) * 0.08, hache(i, k, 63) * 3);
     const col = GISEMENTS[C.gisement[i]] ?? 0x9c9c94;
@@ -491,15 +551,18 @@ export function majSaison(s, n) {
 // ------------------------------------------------------------------ état de la partie (arbres, bâti, routes, territoires)
 const pareil = (a, b) => a.length === b.length && a.every((v, k) => v === b[k]);
 const memes = (a, b) => a.size === b.size && [...a].every(v => b.has(v));
-export function majEtat(etat) {
+export function majEtat(etat, forcer = false) {
   if (!C) return;
   const cs = etat.cases, bati = new Set(etat.batiments.map(b => b.case));
-  const routes = new Set((etat.routes || []).flatMap(r => [r[0], r[1]])), forts = new Set((etat.forts || []).map(f => f.case));
+  const forts = new Set((etat.forts || []).map(f => f.case)), liens = new Map();
+  for (const [a, b] of etat.routes || []) for (const [u, v] of [[a, b], [b, a]]) { if (!liens.has(u)) liens.set(u, []); liens.get(u).push(v); }
+  const routes = new Set(liens.keys()), sigRoutes = [...liens].map(([i, vs]) => i + ':' + vs).sort().join(' ');
   const nq = Math.round((etat.meteo?.neige_sol || 0) * 10) / 10;
-  const change = !pareil(cs.arbres, E.arbres) || !pareil(cs.foret, E.foret) || !memes(bati, E.bati) || !memes(routes, E.routes) || !memes(forts, E.forts) || etat.saison !== saison || nq !== neige;
-  E = { arbres: cs.arbres.slice(), foret: cs.foret.slice(), bati, routes, forts };
+  const change = !pareil(cs.arbres, E.arbres) || !pareil(cs.foret, E.foret) || !memes(bati, E.bati) || sigRoutes !== E.sigRoutes || !memes(forts, E.forts) || etat.saison !== saison || nq !== neige;
+  const traces = sigRoutes === E.sigRoutes ? E.traces : new Map([...liens].map(([i, vs]) => [i, traceRoute(i, vs)]));
+  E = { arbres: cs.arbres.slice(), foret: cs.foret.slice(), bati, routes, traces, sigRoutes, forts };
   saison = etat.saison; neige = nq;
-  if (change) rebatir();
+  if (change || forcer) rebatir();
   territoires(etat);
 }
 
